@@ -167,7 +167,7 @@ function renderHome() {
 function renderTabContent() {
   const c = document.getElementById("content");
   if (!state.activeSeason && state.activeTab !== "pano") {
-    c.innerHTML = `<div class="card"><div class="empty">Önce ayarlardan bir sezon oluştur ve aktif et.</div></div>`;
+    c.innerHTML = `<div class="card"><div class="empty">Önce ⚙ Ayarlar > Sezonlar'dan bir sezon oluşturup "Aktif et" deyin.</div></div>`;
     return;
   }
   if (state.activeTab === "pano") {
@@ -238,7 +238,7 @@ async function renderFidanAlim(body) {
     </div>
     <div class="card">
       <h2>Bu sezonun fidan alımları</h2>
-      ${list.length === 0 ? `<div class="empty">Henüz alım yok.</div>` :
+      ${list.length === 0 ? `<div class="empty">Bu sezonda henüz alım kaydı yok. Yukarıdaki formdan ekleyebilirsin.</div>` :
         list.map(r => {
           const t = types.find(x => x.id === r.crop_type_id);
           const v = varieties.find(x => x.id === r.crop_variety_id);
@@ -341,7 +341,7 @@ async function renderSarfAlim(body) {
     </div>
     <div class="card">
       <h2>Bu sezonun sarf alımları</h2>
-      ${list.length === 0 ? `<div class="empty">Henüz alım yok.</div>` :
+      ${list.length === 0 ? `<div class="empty">Bu sezonda henüz alım kaydı yok. Yukarıdaki formdan ekleyebilirsin.</div>` :
         list.map(r => {
           const cat = cats.find(c => c.id === r.supply_category_id);
           return `<div class="list-item">
@@ -434,7 +434,7 @@ async function renderIlacAlim(body) {
     </div>
     <div class="card">
       <h2>Bu sezonun ilaç alımları</h2>
-      ${list.length === 0 ? `<div class="empty">Henüz alım yok.</div>` :
+      ${list.length === 0 ? `<div class="empty">Bu sezonda henüz alım kaydı yok. Yukarıdaki formdan ekleyebilirsin.</div>` :
         list.map(r => {
           const m = meds.find(x => x.id === r.medicine_id);
           return `<div class="list-item">
@@ -562,7 +562,7 @@ async function renderTuketim(body) {
     </div>
     <div class="card">
       <h2>Bu sezonun kayıtları</h2>
-      ${list.length === 0 ? `<div class="empty">Henüz kayıt yok.</div>` :
+      ${list.length === 0 ? `<div class="empty">Bu sezonda henüz tüketim kaydı yok. Yukarıdaki formdan ekleyebilirsin.</div>` :
         list.map(r => {
           const pool = r.item_type === "supply" ? supplies : utilities;
           const it = pool.find(x => x.id === r.ref_id);
@@ -688,7 +688,7 @@ async function renderSatislar(body) {
     </div>
     <div class="card">
       <h2>Bu sezonun satışları</h2>
-      ${list.length === 0 ? `<div class="empty">Henüz satış yok.</div>` :
+      ${list.length === 0 ? `<div class="empty">Bu sezonda henüz satış kaydı yok. Yukarıdaki formdan ekleyebilirsin.</div>` :
         list.map(r => {
           const t = types.find(x => x.id === r.crop_type_id);
           const v = varieties.find(x => x.id === r.crop_variety_id);
@@ -841,7 +841,7 @@ async function renderPiyasaFiyatlari(body) {
     </div>
     <div class="card">
       <h2>Son piyasa fiyatları</h2>
-      ${list.length === 0 ? `<div class="empty">Henüz kayıt yok.</div>` :
+      ${list.length === 0 ? `<div class="empty">Henüz piyasa fiyatı kaydı yok. Yukarıdaki formdan ekleyebilirsin.</div>` :
         list.map(r => {
           const t = types.find(x => x.id === r.crop_type_id);
           const v = varieties.find(x => x.id === r.crop_variety_id);
@@ -943,7 +943,7 @@ async function renderOrtakTab(container) {
     </div>
     <div class="card">
       <h2>Bu sezonun ödemeleri</h2>
-      ${payouts.length === 0 ? `<div class="empty">Henüz ödeme yok.</div>` :
+      ${payouts.length === 0 ? `<div class="empty">Bu sezonda henüz ödeme yok. Yukarıdaki formdan ortak ödemesi kaydet.</div>` :
         payouts.map(p => `<div class="list-item">
           <div>
             <div>₺${p.amount.toFixed(2)} <span class="meta">[${p.method}]</span></div>
@@ -983,7 +983,7 @@ async function renderOrtakTab(container) {
 
 async function renderPano(container) {
   if (!state.activeSeason) {
-    container.innerHTML = `<div class="card"><h2>Pano</h2><div class="empty">Önce ayarlardan bir sezon oluştur ve aktif et.</div></div>`;
+    container.innerHTML = `<div class="card"><h2>Pano</h2><div class="empty">Önce ⚙ Ayarlar > Sezonlar'dan bir sezon oluşturup "Aktif et" deyin.</div></div>`;
     return;
   }
   container.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
@@ -1055,7 +1055,7 @@ async function renderPano(container) {
 
     <div class="card">
       <h2>Son hareketler</h2>
-      ${top5.length === 0 ? `<div class="empty">Henüz hareket yok.</div>` :
+      ${top5.length === 0 ? `<div class="empty">Henüz satış veya ortak ödemesi yok.</div>` :
         top5.map(r => `<div class="list-item"><div>${escape(r.label)}</div><div class="meta">${r.date}</div></div>`).join("")}
     </div>
   `;
@@ -1146,7 +1146,7 @@ async function renderIlacUygulama(body) {
     </div>
     <div class="card">
       <h2>Bu sezonun uygulamaları</h2>
-      ${list.length === 0 ? `<div class="empty">Henüz uygulama yok.</div>` :
+      ${list.length === 0 ? `<div class="empty">Henüz ilaç uygulaması yok. Bir hastalık seçip eşli ilacı uygula.</div>` :
         list.map(r => {
           const m = meds.find(x => x.id === r.medicine_id);
           const d = diseases.find(x => x.id === r.disease_id);
@@ -1253,7 +1253,7 @@ async function renderSeasonsSettings(body) {
     </div>
     <div class="card">
       <h2>Sezonlar</h2>
-      ${seasons.length === 0 ? `<div class="empty">Henüz sezon yok.</div>` :
+      ${seasons.length === 0 ? `<div class="empty">Henüz sezon yok. Yukarıdaki formla ilk sezonu ekleyin, sonra "Aktif et" deyin.</div>` :
         seasons.map(s => `
           <div class="list-item">
             <div>
