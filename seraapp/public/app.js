@@ -97,7 +97,8 @@ function renderLoading() {
 function renderSetup() {
   app.innerHTML = `
     <main>
-      <h1 style="text-align:center; margin-top:40px;">Hoş geldin</h1>
+      <img src="/logo.svg" alt="SerApp" style="display:block; margin:40px auto 12px; width:80px; height:80px;" />
+      <h1 style="text-align:center; margin:0;">SerApp</h1>
       <p style="text-align:center; color:var(--muted);">İlk kurulum: parola belirle.</p>
       <div class="card" style="margin-top:24px;">
         <label>Parola</label>
@@ -123,7 +124,8 @@ function renderSetup() {
 function renderLogin() {
   app.innerHTML = `
     <main>
-      <h1 style="text-align:center; margin-top:40px;">Sera Takip</h1>
+      <img src="/logo.svg" alt="SerApp" style="display:block; margin:40px auto 12px; width:80px; height:80px;" />
+      <h1 style="text-align:center; margin:0;">SerApp</h1>
       <div class="card" style="margin-top:24px;">
         <label>Parola</label>
         <input id="pw" type="password" autocomplete="current-password" />
@@ -146,9 +148,12 @@ function renderLogin() {
 function renderHome() {
   app.innerHTML = `
     <header class="season-bar">
-      <div>
-        <div class="label">Aktif sezon</div>
-        <div class="value" id="seasonName">${state.activeSeason ? escape(state.activeSeason.name) : "Sezon yok"}</div>
+      <div class="row" style="gap:10px; align-items:center;">
+        <img src="/logo.svg" alt="" style="width:28px; height:28px; flex-shrink:0;" />
+        <div>
+          <div class="label">Aktif sezon</div>
+          <div class="value" id="seasonName">${state.activeSeason ? escape(state.activeSeason.name) : "Sezon yok"}</div>
+        </div>
       </div>
       <button class="settings" id="openSettings" aria-label="Ayarlar">⚙</button>
     </header>
