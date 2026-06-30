@@ -52,6 +52,37 @@ function toast(message, kind = "") {
   setTimeout(() => el.remove(), 3000);
 }
 
+function openModal({ title, body, onSave, saveLabel = "Kaydet" }) {
+  // body: HTML string with form fields (inputs should have ids)
+  // onSave: async (modalRoot) => Promise<boolean> — return true to close
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal-card">
+      <h2>${escape(title)}</h2>
+      ${body}
+      <div class="modal-actions">
+        <button class="secondary" id="modal_cancel">İptal</button>
+        <button class="primary" id="modal_save">${escape(saveLabel)}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  document.getElementById("modal_cancel").onclick = close;
+  document.getElementById("modal_save").onclick = async () => {
+    const btn = document.getElementById("modal_save");
+    btn.disabled = true;
+    try {
+      const ok = await onSave(overlay);
+      if (ok !== false) close();
+    } finally {
+      btn.disabled = false;
+    }
+  };
+}
+
 function html(strings, ...values) {
   // basit template helper; XSS önlemiyor — tüm dinamik metinler textContent ile yazılır
   return strings.reduce((acc, s, i) => acc + s + (values[i] ?? ""), "");
@@ -136,7 +167,7 @@ function renderHome() {
 function renderTabContent() {
   const c = document.getElementById("content");
   if (!state.activeSeason && state.activeTab !== "pano") {
-    c.innerHTML = `<div class="card"><div class="empty">Önce ayarlardan bir sezon oluştur ve aktif et.</div></div>`;
+    c.innerHTML = `<div class="card"><div class="empty">Önce ⚙ Ayarlar > Sezonlar'dan bir sezon oluşturup "Aktif et" deyin.</div></div>`;
     return;
   }
   if (state.activeTab === "pano") {
@@ -207,7 +238,7 @@ async function renderFidanAlim(body) {
     </div>
     <div class="card">
       <h2>Bu sezonun fidan alımları</h2>
-      ${list.length === 0 ? `<div class="empty">Henüz alım yok.</div>` :
+      ${list.length === 0 ? `<div class="empty">Bu sezonda henüz alım kaydı yok. Yukarıdaki formdan ekleyebilirsin.</div>` :
         list.map(r => {
           const t = types.find(x => x.id === r.crop_type_id);
           const v = varieties.find(x => x.id === r.crop_variety_id);
@@ -310,7 +341,7 @@ async function renderSarfAlim(body) {
     </div>
     <div class="card">
       <h2>Bu sezonun sarf alımları</h2>
-      ${list.length === 0 ? `<div class="empty">Henüz alım yok.</div>` :
+      ${list.length === 0 ? `<div class="empty">Bu sezonda henüz alım kaydı yok. Yukarıdaki formdan ekleyebilirsin.</div>` :
         list.map(r => {
           const cat = cats.find(c => c.id === r.supply_category_id);
           return `<div class="list-item">
@@ -403,7 +434,7 @@ async function renderIlacAlim(body) {
     </div>
     <div class="card">
       <h2>Bu sezonun ilaç alımları</h2>
-      ${list.length === 0 ? `<div class="empty">Henüz alım yok.</div>` :
+      ${list.length === 0 ? `<div class="empty">Bu sezonda henüz alım kaydı yok. Yukarıdaki formdan ekleyebilirsin.</div>` :
         list.map(r => {
           const m = meds.find(x => x.id === r.medicine_id);
           return `<div class="list-item">
@@ -531,7 +562,7 @@ async function renderTuketim(body) {
     </div>
     <div class="card">
       <h2>Bu sezonun kayıtları</h2>
-      ${list.length === 0 ? `<div class="empty">Henüz kayıt yok.</div>` :
+      ${list.length === 0 ? `<div class="empty">Bu sezonda henüz tüketim kaydı yok. Yukarıdaki formdan ekleyebilirsin.</div>` :
         list.map(r => {
           const pool = r.item_type === "supply" ? supplies : utilities;
           const it = pool.find(x => x.id === r.ref_id);
@@ -657,7 +688,7 @@ async function renderSatislar(body) {
     </div>
     <div class="card">
       <h2>Bu sezonun satışları</h2>
-      ${list.length === 0 ? `<div class="empty">Henüz satış yok.</div>` :
+      ${list.length === 0 ? `<div class="empty">Bu sezonda henüz satış kaydı yok. Yukarıdaki formdan ekleyebilirsin.</div>` :
         list.map(r => {
           const t = types.find(x => x.id === r.crop_type_id);
           const v = varieties.find(x => x.id === r.crop_variety_id);
@@ -666,7 +697,10 @@ async function renderSatislar(body) {
               <div>${escape(t?.name ?? "?")} · ${escape(v?.name ?? "?")}${r.buyer ? ` → ${escape(r.buyer)}` : ""}</div>
               <div class="meta">${r.sale_date} · ${r.quantity} kg × ₺${r.unit_price.toFixed(2)} = ₺${r.total_revenue.toFixed(2)}</div>
             </div>
-            <button class="danger" data-del="${r.id}">Sil</button>
+            <div class="row">
+              <button class="secondary" data-edit="${r.id}">Düzenle</button>
+              <button class="danger" data-del="${r.id}">Sil</button>
+            </div>
           </div>`;
         }).join("")}
     </div>
@@ -733,6 +767,53 @@ async function renderSatislar(body) {
       renderSatislar(body);
     };
   });
+
+  body.querySelectorAll("[data-edit]").forEach(btn => {
+    btn.onclick = () => {
+      const id = Number(btn.dataset.edit);
+      const r = list.find(x => x.id === id);
+      if (!r) return;
+      openModal({
+        title: "Satış düzenle",
+        body: `
+          <label>Tarih</label><input id="em_date" type="date" value="${r.sale_date}" />
+          <label>Miktar (kg)</label><input id="em_qty" type="number" inputmode="decimal" min="0" step="0.01" value="${r.quantity}" />
+          <label>Birim fiyat (TL/kg)</label><input id="em_up" type="number" inputmode="decimal" min="0" step="0.01" value="${r.unit_price}" />
+          <label>Toplam ciro (TL)</label><input id="em_tr" type="number" inputmode="decimal" min="0" step="0.01" value="${r.total_revenue}" />
+          <label>Birim maliyet (TL/kg, ops.)</label><input id="em_uc" type="number" inputmode="decimal" min="0" step="0.01" value="${r.unit_cost ?? ''}" />
+          <label>Toplam maliyet (TL, ops.)</label><input id="em_tc" type="number" inputmode="decimal" min="0" step="0.01" value="${r.total_cost ?? ''}" />
+          <label>Alıcı (ops.)</label><input id="em_buyer" value="${escape(r.buyer ?? '')}" />
+          <label>Notlar (ops.)</label><input id="em_notes" value="${escape(r.notes ?? '')}" />
+        `,
+        onSave: async () => {
+          const payload = {
+            sale_date: document.getElementById("em_date").value,
+            quantity: Number(document.getElementById("em_qty").value),
+            unit_price: Number(document.getElementById("em_up").value),
+            total_revenue: Number(document.getElementById("em_tr").value),
+            buyer: document.getElementById("em_buyer").value.trim(),
+            notes: document.getElementById("em_notes").value.trim(),
+          };
+          const ucVal = document.getElementById("em_uc").value;
+          const tcVal = document.getElementById("em_tc").value;
+          if (ucVal !== "") payload.unit_cost = Number(ucVal);
+          if (tcVal !== "") payload.total_cost = Number(tcVal);
+          if (!(payload.quantity > 0) || !(payload.unit_price >= 0)) {
+            toast("Geçersiz miktar/fiyat", "error");
+            return false;
+          }
+          try {
+            await apiCall(`/api/sales/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+            toast("Güncellendi");
+            renderSatislar(body);
+            return true;
+          } catch {
+            return false;
+          }
+        },
+      });
+    };
+  });
 }
 
 async function renderPiyasaFiyatlari(body) {
@@ -760,7 +841,7 @@ async function renderPiyasaFiyatlari(body) {
     </div>
     <div class="card">
       <h2>Son piyasa fiyatları</h2>
-      ${list.length === 0 ? `<div class="empty">Henüz kayıt yok.</div>` :
+      ${list.length === 0 ? `<div class="empty">Henüz piyasa fiyatı kaydı yok. Yukarıdaki formdan ekleyebilirsin.</div>` :
         list.map(r => {
           const t = types.find(x => x.id === r.crop_type_id);
           const v = varieties.find(x => x.id === r.crop_variety_id);
@@ -862,7 +943,7 @@ async function renderOrtakTab(container) {
     </div>
     <div class="card">
       <h2>Bu sezonun ödemeleri</h2>
-      ${payouts.length === 0 ? `<div class="empty">Henüz ödeme yok.</div>` :
+      ${payouts.length === 0 ? `<div class="empty">Bu sezonda henüz ödeme yok. Yukarıdaki formdan ortak ödemesi kaydet.</div>` :
         payouts.map(p => `<div class="list-item">
           <div>
             <div>₺${p.amount.toFixed(2)} <span class="meta">[${p.method}]</span></div>
@@ -902,21 +983,24 @@ async function renderOrtakTab(container) {
 
 async function renderPano(container) {
   if (!state.activeSeason) {
-    container.innerHTML = `<div class="card"><h2>Pano</h2><div class="empty">Önce ayarlardan bir sezon oluştur ve aktif et.</div></div>`;
+    container.innerHTML = `<div class="card"><h2>Pano</h2><div class="empty">Önce ⚙ Ayarlar > Sezonlar'dan bir sezon oluşturup "Aktif et" deyin.</div></div>`;
     return;
   }
   container.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
   const seasonId = state.activeSeason.id;
-  const [summary, sales, payouts] = await Promise.all([
+  const [summary, sales, payouts, monthly, prices, types, varieties] = await Promise.all([
     apiCall(`/api/reports/season-summary?season_id=${seasonId}`),
     apiCall(`/api/sales?season_id=${seasonId}`),
     apiCall(`/api/payouts?season_id=${seasonId}`),
+    apiCall(`/api/reports/monthly-consumption?season_id=${seasonId}`),
+    apiCall(`/api/market-prices`),
+    apiCall(`/api/master/crop-types`),
+    apiCall(`/api/master/crop-varieties`),
   ]);
 
   const balanceLabel = summary.partner_balance > 0 ? "borç" : (summary.partner_balance < 0 ? "fazla" : "denk");
   const balanceColor = summary.partner_balance > 0 ? "var(--danger)" : (summary.partner_balance < 0 ? "var(--warn)" : "var(--accent)");
 
-  // En son 5 hareketi birleştir
   const recent = [];
   for (const s of sales.slice(0, 5)) {
     recent.push({ date: s.sale_date, label: `Satış: ${s.quantity} kg ₺${s.total_revenue.toFixed(2)}` });
@@ -927,39 +1011,104 @@ async function renderPano(container) {
   recent.sort((a, b) => b.date.localeCompare(a.date));
   const top5 = recent.slice(0, 5);
 
+  // Monthly chart data: month → total_cost
+  const monthlyTotals = {};
+  for (const r of monthly) {
+    monthlyTotals[r.period_month] = (monthlyTotals[r.period_month] || 0) + (r.total_cost || 0);
+  }
+  const monthLabels = Object.keys(monthlyTotals).sort();
+  const monthData = monthLabels.map(m => monthlyTotals[m]);
+
+  // Price series: group by `type · variety`, map date → market_price
+  const priceSeries = {};
+  for (const p of prices) {
+    const t = types.find(x => x.id === p.crop_type_id);
+    const v = varieties.find(x => x.id === p.crop_variety_id);
+    const key = `${t?.name ?? "?"} · ${v?.name ?? "?"}`;
+    (priceSeries[key] = priceSeries[key] || []).push({ x: p.snapshot_date, y: p.market_price });
+  }
+  // Sort each series by date asc
+  for (const key of Object.keys(priceSeries)) {
+    priceSeries[key].sort((a, b) => a.x.localeCompare(b.x));
+  }
+  const allDates = [...new Set(prices.map(p => p.snapshot_date))].sort();
+
   container.innerHTML = `
     <div class="card">
       <h2>${escape(state.activeSeason.name)}</h2>
-      <div class="list-item">
-        <div>Brüt ciro</div>
-        <div class="meta" style="font-size:16px;color:var(--text);">₺${summary.total_revenue.toFixed(2)}</div>
-      </div>
-      <div class="list-item">
-        <div>Net tahmini</div>
-        <div class="meta" style="font-size:16px;color:var(--accent);">₺${summary.net_estimated.toFixed(2)}</div>
-      </div>
-      <div class="list-item">
-        <div>Ortak payı (%${summary.partner_share_pct})</div>
-        <div class="meta">₺${summary.partner_share.toFixed(2)}</div>
-      </div>
-      <div class="list-item">
-        <div>Ödenen</div>
-        <div class="meta">₺${summary.partner_paid.toFixed(2)}</div>
-      </div>
-      <div class="list-item">
-        <div><strong>Bakiye</strong></div>
-        <div style="color:${balanceColor};font-weight:600;">₺${Math.abs(summary.partner_balance).toFixed(2)} ${balanceLabel}</div>
-      </div>
+      <div class="list-item"><div>Brüt ciro</div><div class="meta" style="font-size:16px;color:var(--text);">₺${summary.total_revenue.toFixed(2)}</div></div>
+      <div class="list-item"><div>Net tahmini</div><div class="meta" style="font-size:16px;color:var(--accent);">₺${summary.net_estimated.toFixed(2)}</div></div>
+      <div class="list-item"><div>Ortak payı (%${summary.partner_share_pct})</div><div class="meta">₺${summary.partner_share.toFixed(2)}</div></div>
+      <div class="list-item"><div>Ödenen</div><div class="meta">₺${summary.partner_paid.toFixed(2)}</div></div>
+      <div class="list-item"><div><strong>Bakiye</strong></div><div style="color:${balanceColor};font-weight:600;">₺${Math.abs(summary.partner_balance).toFixed(2)} ${balanceLabel}</div></div>
     </div>
+
+    <div class="card">
+      <h2>Aylık tüketim (TL)</h2>
+      ${monthLabels.length === 0 ? `<div class="empty">Henüz tüketim kaydı yok.</div>` : `<div class="chart-wrap"><canvas id="chart_monthly"></canvas></div>`}
+    </div>
+
+    <div class="card">
+      <h2>Piyasa fiyatları (TL/kg)</h2>
+      ${allDates.length === 0 ? `<div class="empty">Henüz piyasa fiyatı kaydı yok.</div>` : `<div class="chart-wrap"><canvas id="chart_prices"></canvas></div>`}
+    </div>
+
     <div class="card">
       <h2>Son hareketler</h2>
-      ${top5.length === 0 ? `<div class="empty">Henüz hareket yok.</div>` :
-        top5.map(r => `<div class="list-item">
-          <div>${escape(r.label)}</div>
-          <div class="meta">${r.date}</div>
-        </div>`).join("")}
+      ${top5.length === 0 ? `<div class="empty">Henüz satış veya ortak ödemesi yok.</div>` :
+        top5.map(r => `<div class="list-item"><div>${escape(r.label)}</div><div class="meta">${r.date}</div></div>`).join("")}
     </div>
   `;
+
+  // Charts
+  if (monthLabels.length > 0 && typeof Chart !== "undefined") {
+    new Chart(document.getElementById("chart_monthly"), {
+      type: "bar",
+      data: {
+        labels: monthLabels,
+        datasets: [{
+          label: "Tüketim (TL)",
+          data: monthData,
+          backgroundColor: "rgba(74, 210, 143, 0.5)",
+          borderColor: "rgba(74, 210, 143, 1)",
+          borderWidth: 1,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: "#8aa394" }, grid: { color: "rgba(42,59,51,0.4)" } },
+          y: { ticks: { color: "#8aa394" }, grid: { color: "rgba(42,59,51,0.4)" }, beginAtZero: true },
+        },
+      },
+    });
+  }
+
+  if (allDates.length > 0 && typeof Chart !== "undefined") {
+    const palette = ["#4ad28f","#ffb454","#ff5d6c","#7aa2f7","#bb9af7","#9ece6a","#f7768e","#e0af68"];
+    const datasets = Object.keys(priceSeries).map((key, i) => ({
+      label: key,
+      data: priceSeries[key],
+      borderColor: palette[i % palette.length],
+      backgroundColor: palette[i % palette.length],
+      tension: 0.2,
+      borderWidth: 2,
+    }));
+    new Chart(document.getElementById("chart_prices"), {
+      type: "line",
+      data: { datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        parsing: { xAxisKey: "x", yAxisKey: "y" },
+        plugins: { legend: { labels: { color: "#e6efe7" } } },
+        scales: {
+          x: { type: "category", labels: allDates, ticks: { color: "#8aa394" }, grid: { color: "rgba(42,59,51,0.4)" } },
+          y: { ticks: { color: "#8aa394" }, grid: { color: "rgba(42,59,51,0.4)" }, beginAtZero: true },
+        },
+      },
+    });
+  }
 }
 
 async function renderIlacUygulama(body) {
@@ -997,7 +1146,7 @@ async function renderIlacUygulama(body) {
     </div>
     <div class="card">
       <h2>Bu sezonun uygulamaları</h2>
-      ${list.length === 0 ? `<div class="empty">Henüz uygulama yok.</div>` :
+      ${list.length === 0 ? `<div class="empty">Henüz ilaç uygulaması yok. Bir hastalık seçip eşli ilacı uygula.</div>` :
         list.map(r => {
           const m = meds.find(x => x.id === r.medicine_id);
           const d = diseases.find(x => x.id === r.disease_id);
@@ -1104,7 +1253,7 @@ async function renderSeasonsSettings(body) {
     </div>
     <div class="card">
       <h2>Sezonlar</h2>
-      ${seasons.length === 0 ? `<div class="empty">Henüz sezon yok.</div>` :
+      ${seasons.length === 0 ? `<div class="empty">Henüz sezon yok. Yukarıdaki formla ilk sezonu ekleyin, sonra "Aktif et" deyin.</div>` :
         seasons.map(s => `
           <div class="list-item">
             <div>
