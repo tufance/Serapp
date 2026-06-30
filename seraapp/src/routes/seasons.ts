@@ -72,3 +72,18 @@ seasonsRouter.delete("/seasons/:id", async (c) => {
   await run(c.env.DB, "DELETE FROM seasons WHERE id=?", id);
   return new Response(null, { status: 204 });
 });
+
+seasonsRouter.post("/seasons/:id/activate", async (c) => {
+  const id = Number(c.req.param("id"));
+  const existing = await one(c.env.DB, "SELECT id FROM seasons WHERE id=?", id);
+  if (!existing) return c.json({ error: "not found" }, 404);
+
+  // batch: önce hepsini pasif et, sonra hedefi aktif et
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE seasons SET is_active=0, updated_at=datetime('now')"),
+    c.env.DB.prepare("UPDATE seasons SET is_active=1, updated_at=datetime('now') WHERE id=?").bind(id),
+  ]);
+
+  const row = await one<Season>(c.env.DB, "SELECT * FROM seasons WHERE id=?", id);
+  return c.json(row);
+});

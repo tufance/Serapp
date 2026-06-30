@@ -96,3 +96,36 @@ describe("seasons CRUD", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("activate season", () => {
+  let cookie: string;
+  beforeEach(async () => {
+    await resetDb(); await clearKV(); await migrate();
+    cookie = await authedCookie();
+  });
+
+  it("activates a season and deactivates others", async () => {
+    const a = (await (await SELF.fetch("https://example.com/api/seasons", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "A", start_date: "2024-01-01", end_date: "2024-12-31" }),
+    })).json()) as any;
+    const b = (await (await SELF.fetch("https://example.com/api/seasons", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "B", start_date: "2025-01-01", end_date: "2025-12-31" }),
+    })).json()) as any;
+
+    const r1 = await SELF.fetch(`https://example.com/api/seasons/${a.id}/activate`, {
+      method: "POST", headers: { cookie },
+    });
+    expect(r1.status).toBe(200);
+
+    const r2 = await SELF.fetch(`https://example.com/api/seasons/${b.id}/activate`, {
+      method: "POST", headers: { cookie },
+    });
+    expect(r2.status).toBe(200);
+
+    const list = await (await SELF.fetch("https://example.com/api/seasons", { headers: { cookie } })).json() as any[];
+    expect(list.find(s => s.id === a.id).is_active).toBe(0);
+    expect(list.find(s => s.id === b.id).is_active).toBe(1);
+  });
+});
