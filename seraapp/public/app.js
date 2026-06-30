@@ -839,21 +839,6 @@ async function renderPiyasaFiyatlari(body) {
 
   body.innerHTML = `
     <div class="card">
-      <h2>Son piyasa fiyatları</h2>
-      ${list.length === 0 ? `<div class="empty">Henüz piyasa fiyatı kaydı yok. Aşağıdaki formdan ekleyebilirsin.</div>` :
-        list.map(r => {
-          const t = types.find(x => x.id === r.crop_type_id);
-          const v = varieties.find(x => x.id === r.crop_variety_id);
-          return `<div class="list-item">
-            <div>
-              <div>${escape(t?.name ?? "?")} · ${escape(v?.name ?? "?")}</div>
-              <div class="meta">${r.snapshot_date} · ₺${r.market_price.toFixed(2)}/kg${r.source ? ` · ${escape(r.source)}` : ""}</div>
-            </div>
-            <button class="danger" data-del="${r.id}">Sil</button>
-          </div>`;
-        }).join("")}
-    </div>
-    <div class="card">
       <h2>Zaman / fiyat grafiği (TL/kg)</h2>
       ${allDates.length === 0 ? `<div class="empty">Grafiğin dolması için fiyat kaydı gerekiyor.</div>` : `<div class="chart-wrap"><canvas id="mp_chart"></canvas></div>`}
     </div>
@@ -869,6 +854,21 @@ async function renderPiyasaFiyatlari(body) {
       <label>Notlar (ops.)</label><input id="mp_notes" />
       <div style="height:12px;"></div>
       <button class="primary" id="mp_create">Kaydet</button>
+    </div>
+    <div class="card">
+      <h2>Son piyasa fiyatları</h2>
+      ${list.length === 0 ? `<div class="empty">Henüz piyasa fiyatı kaydı yok. Yukarıdaki formdan ekleyebilirsin.</div>` :
+        list.map(r => {
+          const t = types.find(x => x.id === r.crop_type_id);
+          const v = varieties.find(x => x.id === r.crop_variety_id);
+          return `<div class="list-item">
+            <div>
+              <div>${escape(t?.name ?? "?")} · ${escape(v?.name ?? "?")}</div>
+              <div class="meta">${r.snapshot_date} · ₺${r.market_price.toFixed(2)}/kg${r.source ? ` · ${escape(r.source)}` : ""}</div>
+            </div>
+            <button class="danger" data-del="${r.id}">Sil</button>
+          </div>`;
+        }).join("")}
     </div>
   `;
 
