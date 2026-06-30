@@ -270,7 +270,99 @@ async function renderFidanAlim(body) {
     };
   });
 }
-async function renderSarfAlim(body) { body.innerHTML = `<div class="card"><div class="empty">Sarf UI (Task 14)</div></div>`; }
+async function renderSarfAlim(body) {
+  body.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
+  const seasonId = state.activeSeason.id;
+  const [cats, list, stock] = await Promise.all([
+    apiCall("/api/master/supplies"),
+    apiCall(`/api/supply-purchases?season_id=${seasonId}`),
+    apiCall("/api/stock/supplies"),
+  ]);
+  const today = new Date().toISOString().slice(0,10);
+
+  body.innerHTML = `
+    <div class="card">
+      <h2>Stok durumu</h2>
+      ${stock.length === 0 ? `<div class="empty">Henüz stok hareketi yok.</div>` :
+        stock.map(s => `<div class="list-item">
+          <div>${escape(s.name)}</div>
+          <div class="meta">${s.balance} ${escape(s.unit)}</div>
+        </div>`).join("")}
+    </div>
+    <div class="card">
+      <h2>Yeni sarf alımı</h2>
+      <label>Tarih</label><input id="sp_date" type="date" value="${today}" />
+      <label>Kategori</label>
+      <select id="sp_cat">${cats.map(c => `<option value="${c.id}" data-unit="${escape(c.unit)}">${escape(c.name)} (${escape(c.unit)})</option>`).join("")}</select>
+      <label>Miktar</label><input id="sp_qty" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Birim (otomatik)</label><input id="sp_unit" readonly />
+      <label>Birim maliyet (TL)</label><input id="sp_uc" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Toplam (TL)</label><input id="sp_tc" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Tedarikçi (ops.)</label><input id="sp_supplier" />
+      <label>Notlar (ops.)</label><input id="sp_notes" />
+      <div style="height:12px;"></div>
+      <button class="primary" id="sp_create">Kaydet</button>
+    </div>
+    <div class="card">
+      <h2>Bu sezonun sarf alımları</h2>
+      ${list.length === 0 ? `<div class="empty">Henüz alım yok.</div>` :
+        list.map(r => {
+          const cat = cats.find(c => c.id === r.supply_category_id);
+          return `<div class="list-item">
+            <div>
+              <div>${escape(cat?.name ?? "?")}</div>
+              <div class="meta">${r.purchase_date} · ${r.quantity} ${escape(r.unit)} × ₺${r.unit_cost.toFixed(2)} = ₺${r.total_cost.toFixed(2)}</div>
+            </div>
+            <button class="danger" data-del="${r.id}">Sil</button>
+          </div>`;
+        }).join("")}
+    </div>
+  `;
+
+  function syncUnit() {
+    const sel = document.getElementById("sp_cat");
+    document.getElementById("sp_unit").value = sel.options[sel.selectedIndex]?.dataset.unit ?? "";
+  }
+  syncUnit();
+  document.getElementById("sp_cat").onchange = syncUnit;
+
+  const qty = document.getElementById("sp_qty"), uc = document.getElementById("sp_uc"), tc = document.getElementById("sp_tc");
+  function recalc() {
+    const q = Number(qty.value), u = Number(uc.value);
+    if (q > 0 && u >= 0) tc.value = (q * u).toFixed(2);
+  }
+  qty.oninput = recalc; uc.oninput = recalc;
+
+  document.getElementById("sp_create").onclick = async () => {
+    const payload = {
+      season_id: seasonId,
+      purchase_date: document.getElementById("sp_date").value,
+      supply_category_id: Number(document.getElementById("sp_cat").value),
+      quantity: Number(qty.value),
+      unit: document.getElementById("sp_unit").value,
+      unit_cost: Number(uc.value),
+      total_cost: Number(tc.value),
+      supplier: document.getElementById("sp_supplier").value.trim() || undefined,
+      notes: document.getElementById("sp_notes").value.trim() || undefined,
+    };
+    if (!payload.purchase_date || !(payload.quantity > 0) || !payload.unit) {
+      return toast("Eksik veya geçersiz alan", "error");
+    }
+    try {
+      await apiCall("/api/supply-purchases", { method: "POST", body: JSON.stringify(payload) });
+      toast("Eklendi");
+      renderSarfAlim(body);
+    } catch {}
+  };
+
+  body.querySelectorAll("[data-del]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Silinsin mi?")) return;
+      await apiCall(`/api/supply-purchases/${btn.dataset.del}`, { method: "DELETE" });
+      renderSarfAlim(body);
+    };
+  });
+}
 async function renderIlacAlim(body) { body.innerHTML = `<div class="card"><div class="empty">İlaç UI (Task 15)</div></div>`; }
 async function renderHareketTab(container) { container.innerHTML = `<div class="card"><div class="empty">İlaç uygulamaları UI (Task 16)</div></div>`; }
 
