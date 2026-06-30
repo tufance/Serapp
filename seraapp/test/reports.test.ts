@@ -84,3 +84,123 @@ describe("GET /api/reports/monthly-consumption", () => {
     expect(elec.total_cost).toBe(800);
   });
 });
+
+describe("GET /api/reports/season-summary", () => {
+  let cookie: string;
+  let seasonId: number;
+  let typeId: number;
+  let varietyId: number;
+  beforeEach(async () => {
+    await resetDb(); await clearKV(); await migrate();
+    const hash = await hashPassword("pw");
+    await env.DB.prepare("INSERT INTO app_config(key,value) VALUES('password_hash',?)").bind(hash).run();
+    const loginRes = await SELF.fetch("https://example.com/api/auth/login", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password: "pw" }),
+    });
+    cookie = loginRes.headers.get("set-cookie")!.split(";")[0];
+    const s = await (await SELF.fetch("https://example.com/api/seasons", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "S1", start_date: "2025-09-01", end_date: "2026-08-31", partner_share_pct: 25 }),
+    })).json() as any;
+    seasonId = s.id;
+    const t = await (await SELF.fetch("https://example.com/api/master/crop-types", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "domates" }),
+    })).json() as any;
+    typeId = t.id;
+    const v = await (await SELF.fetch("https://example.com/api/master/crop-varieties", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ crop_type_id: t.id, name: "çeri" }),
+    })).json() as any;
+    varietyId = v.id;
+  });
+
+  it("requires season_id", async () => {
+    const res = await SELF.fetch("https://example.com/api/reports/season-summary", { headers: { cookie } });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns zeros for empty season", async () => {
+    const res = await SELF.fetch(`https://example.com/api/reports/season-summary?season_id=${seasonId}`, { headers: { cookie } });
+    expect(res.status).toBe(200);
+    const j = await res.json() as any;
+    expect(j.total_revenue).toBe(0);
+    expect(j.partner_share).toBe(0);
+    expect(j.partner_paid).toBe(0);
+    expect(j.partner_balance).toBe(0);
+    expect(j.partner_share_pct).toBe(25);
+  });
+
+  it("computes revenue, share, paid, balance", async () => {
+    // Two sales: 1000 + 1500 = 2500 revenue
+    await SELF.fetch("https://example.com/api/sales", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({
+        season_id: seasonId, sale_date: "2026-01-15",
+        crop_type_id: typeId, crop_variety_id: varietyId,
+        quantity: 50, unit_price: 20, total_revenue: 1000,
+        unit_cost: 8, total_cost: 400,
+      }),
+    });
+    await SELF.fetch("https://example.com/api/sales", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({
+        season_id: seasonId, sale_date: "2026-02-20",
+        crop_type_id: typeId, crop_variety_id: varietyId,
+        quantity: 60, unit_price: 25, total_revenue: 1500,
+        unit_cost: 9, total_cost: 540,
+      }),
+    });
+    // One payout: 300
+    await SELF.fetch("https://example.com/api/payouts", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ season_id: seasonId, payout_date: "2026-02-25", amount: 300, method: "havale" }),
+    });
+
+    const res = await SELF.fetch(`https://example.com/api/reports/season-summary?season_id=${seasonId}`, { headers: { cookie } });
+    const j = await res.json() as any;
+    expect(j.total_revenue).toBe(2500);
+    expect(j.total_cost_recorded).toBe(940);
+    expect(j.net_estimated).toBe(1560);
+    expect(j.partner_share).toBe(625); // 2500 * 0.25
+    expect(j.partner_paid).toBe(300);
+    expect(j.partner_balance).toBe(325); // 625 - 300
+  });
+});
+
+describe("GET /api/reports/reconciliation", () => {
+  let cookie: string;
+  let seasonId: number;
+  beforeEach(async () => {
+    await resetDb(); await clearKV(); await migrate();
+    const hash = await hashPassword("pw");
+    await env.DB.prepare("INSERT INTO app_config(key,value) VALUES('password_hash',?)").bind(hash).run();
+    const loginRes = await SELF.fetch("https://example.com/api/auth/login", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password: "pw" }),
+    });
+    cookie = loginRes.headers.get("set-cookie")!.split(";")[0];
+    const s = await (await SELF.fetch("https://example.com/api/seasons", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "S1", start_date: "2025-09-01", end_date: "2026-08-31", partner_share_pct: 25 }),
+    })).json() as any;
+    seasonId = s.id;
+  });
+
+  it("includes season + payouts list", async () => {
+    await SELF.fetch("https://example.com/api/payouts", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ season_id: seasonId, payout_date: "2026-02-25", amount: 300, method: "havale" }),
+    });
+    const res = await SELF.fetch(`https://example.com/api/reports/reconciliation?season_id=${seasonId}`, { headers: { cookie } });
+    expect(res.status).toBe(200);
+    const j = await res.json() as any;
+    expect(j.season.id).toBe(seasonId);
+    expect(j.season.partner_share_pct).toBe(25);
+    expect(j.payouts).toHaveLength(1);
+    expect(j.partner_paid).toBe(300);
+    expect(j.partner_share).toBe(0);
+    expect(j.partner_balance).toBe(-300);
+  });
+});
