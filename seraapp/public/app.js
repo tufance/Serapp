@@ -18,6 +18,7 @@ const TABS = [
 state.activeTab = state.activeTab || "pano";
 state.alimSubTab = state.alimSubTab || "fidan";
 state.hareketSubTab = state.hareketSubTab || "ilac";
+state.satisSubTab = state.satisSubTab || "satislar";
 state.settingsOpen = state.settingsOpen || false;
 state.settingsTab = state.settingsTab || "seasons";
 
@@ -139,11 +140,15 @@ function renderTabContent() {
     return;
   }
   if (state.activeTab === "pano") {
-    c.innerHTML = `<div class="card"><h2>Pano</h2><div class="empty">Sonraki fazlarda dolacak.</div></div>`;
+    renderPano(c);
   } else if (state.activeTab === "alim") {
     renderAlimTab(c);
   } else if (state.activeTab === "hareket") {
     renderHareketTab(c);
+  } else if (state.activeTab === "satis") {
+    renderSatisTab(c);
+  } else if (state.activeTab === "ortak") {
+    renderOrtakTab(c);
   } else {
     c.innerHTML = `<div class="card"><h2>${escape(TABS.find(t=>t.key===state.activeTab).label)}</h2><div class="empty">Bu modül sonraki fazlarda gelecek.</div></div>`;
   }
@@ -597,6 +602,364 @@ async function renderTuketim(body) {
       renderTuketim(body);
     };
   });
+}
+
+function renderSatisTab(container) {
+  const SUBS = [
+    { key: "satislar", label: "Satışlar" },
+    { key: "piyasa", label: "Piyasa fiyatları" },
+  ];
+  container.innerHTML = `
+    <div class="card">
+      <div class="row" style="gap:8px; flex-wrap:wrap;">
+        ${SUBS.map(s =>
+          `<button class="${state.satisSubTab===s.key?"primary":"secondary"}" data-sub="${s.key}">${s.label}</button>`
+        ).join("")}
+      </div>
+    </div>
+    <div id="satisBody"></div>
+  `;
+  container.querySelectorAll("[data-sub]").forEach(b => {
+    b.onclick = () => { state.satisSubTab = b.dataset.sub; renderTabContent(); };
+  });
+  const body = document.getElementById("satisBody");
+  if (state.satisSubTab === "satislar") renderSatislar(body);
+  else if (state.satisSubTab === "piyasa") renderPiyasaFiyatlari(body);
+}
+
+async function renderSatislar(body) {
+  body.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
+  const seasonId = state.activeSeason.id;
+  const [types, varieties, list] = await Promise.all([
+    apiCall("/api/master/crop-types"),
+    apiCall("/api/master/crop-varieties"),
+    apiCall(`/api/sales?season_id=${seasonId}`),
+  ]);
+  const today = new Date().toISOString().slice(0,10);
+
+  body.innerHTML = `
+    <div class="card">
+      <h2>Yeni satış</h2>
+      <label>Tarih</label><input id="sale_date" type="date" value="${today}" />
+      <label>Tür</label>
+      <select id="sale_type">${types.map(t => `<option value="${t.id}">${escape(t.name)}</option>`).join("")}</select>
+      <label>Cins</label>
+      <select id="sale_var"></select>
+      <label>Miktar (kg)</label><input id="sale_qty" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Birim fiyat (TL/kg)</label><input id="sale_up" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Toplam ciro (TL)</label><input id="sale_tr" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Birim maliyet (TL/kg, ops.)</label><input id="sale_uc" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Toplam maliyet (TL, ops.)</label><input id="sale_tc" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Alıcı (ops.)</label><input id="sale_buyer" />
+      <label>Notlar (ops.)</label><input id="sale_notes" />
+      <div style="height:12px;"></div>
+      <button class="primary" id="sale_create">Kaydet</button>
+    </div>
+    <div class="card">
+      <h2>Bu sezonun satışları</h2>
+      ${list.length === 0 ? `<div class="empty">Henüz satış yok.</div>` :
+        list.map(r => {
+          const t = types.find(x => x.id === r.crop_type_id);
+          const v = varieties.find(x => x.id === r.crop_variety_id);
+          return `<div class="list-item">
+            <div>
+              <div>${escape(t?.name ?? "?")} · ${escape(v?.name ?? "?")}${r.buyer ? ` → ${escape(r.buyer)}` : ""}</div>
+              <div class="meta">${r.sale_date} · ${r.quantity} kg × ₺${r.unit_price.toFixed(2)} = ₺${r.total_revenue.toFixed(2)}</div>
+            </div>
+            <button class="danger" data-del="${r.id}">Sil</button>
+          </div>`;
+        }).join("")}
+    </div>
+  `;
+
+  function refreshVar() {
+    const sel = document.getElementById("sale_var");
+    const tid = Number(document.getElementById("sale_type").value);
+    const matches = varieties.filter(v => v.crop_type_id === tid);
+    sel.innerHTML = matches.length
+      ? matches.map(v => `<option value="${v.id}">${escape(v.name)}</option>`).join("")
+      : `<option value="">— Bu tür için cins yok —</option>`;
+  }
+  refreshVar();
+  document.getElementById("sale_type").onchange = refreshVar;
+
+  const qty = document.getElementById("sale_qty");
+  const up = document.getElementById("sale_up");
+  const tr = document.getElementById("sale_tr");
+  const uc = document.getElementById("sale_uc");
+  const tc = document.getElementById("sale_tc");
+  function recalcRev() {
+    const q = Number(qty.value), p = Number(up.value);
+    if (q > 0 && p >= 0) tr.value = (q * p).toFixed(2);
+  }
+  function recalcCost() {
+    const q = Number(qty.value), p = Number(uc.value);
+    if (q > 0 && p >= 0) tc.value = (q * p).toFixed(2);
+  }
+  qty.oninput = () => { recalcRev(); recalcCost(); };
+  up.oninput = recalcRev;
+  uc.oninput = recalcCost;
+
+  document.getElementById("sale_create").onclick = async () => {
+    const varVal = document.getElementById("sale_var").value;
+    if (!varVal) return toast("Önce bir cins ekle", "error");
+    const payload = {
+      season_id: seasonId,
+      sale_date: document.getElementById("sale_date").value,
+      crop_type_id: Number(document.getElementById("sale_type").value),
+      crop_variety_id: Number(varVal),
+      quantity: Number(qty.value),
+      unit_price: Number(up.value),
+      total_revenue: Number(tr.value),
+      unit_cost: uc.value ? Number(uc.value) : undefined,
+      total_cost: tc.value ? Number(tc.value) : undefined,
+      buyer: document.getElementById("sale_buyer").value.trim() || undefined,
+      notes: document.getElementById("sale_notes").value.trim() || undefined,
+    };
+    if (!payload.sale_date || !(payload.quantity > 0) || !(payload.unit_price >= 0) || !(payload.total_revenue >= 0)) {
+      return toast("Eksik veya geçersiz alan", "error");
+    }
+    try {
+      await apiCall("/api/sales", { method: "POST", body: JSON.stringify(payload) });
+      toast("Eklendi");
+      renderSatislar(body);
+    } catch {}
+  };
+
+  body.querySelectorAll("[data-del]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Silinsin mi?")) return;
+      await apiCall(`/api/sales/${btn.dataset.del}`, { method: "DELETE" });
+      renderSatislar(body);
+    };
+  });
+}
+
+async function renderPiyasaFiyatlari(body) {
+  body.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
+  const [types, varieties, list] = await Promise.all([
+    apiCall("/api/master/crop-types"),
+    apiCall("/api/master/crop-varieties"),
+    apiCall("/api/market-prices"),
+  ]);
+  const today = new Date().toISOString().slice(0,10);
+
+  body.innerHTML = `
+    <div class="card">
+      <h2>Yeni piyasa fiyatı kaydı</h2>
+      <label>Tarih</label><input id="mp_date" type="date" value="${today}" />
+      <label>Tür</label>
+      <select id="mp_type">${types.map(t => `<option value="${t.id}">${escape(t.name)}</option>`).join("")}</select>
+      <label>Cins</label>
+      <select id="mp_var"></select>
+      <label>Piyasa fiyatı (TL/kg)</label><input id="mp_price" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Kaynak (ops.)</label><input id="mp_source" placeholder="Antalya hali" />
+      <label>Notlar (ops.)</label><input id="mp_notes" />
+      <div style="height:12px;"></div>
+      <button class="primary" id="mp_create">Kaydet</button>
+    </div>
+    <div class="card">
+      <h2>Son piyasa fiyatları</h2>
+      ${list.length === 0 ? `<div class="empty">Henüz kayıt yok.</div>` :
+        list.map(r => {
+          const t = types.find(x => x.id === r.crop_type_id);
+          const v = varieties.find(x => x.id === r.crop_variety_id);
+          return `<div class="list-item">
+            <div>
+              <div>${escape(t?.name ?? "?")} · ${escape(v?.name ?? "?")}</div>
+              <div class="meta">${r.snapshot_date} · ₺${r.market_price.toFixed(2)}/kg${r.source ? ` · ${escape(r.source)}` : ""}</div>
+            </div>
+            <button class="danger" data-del="${r.id}">Sil</button>
+          </div>`;
+        }).join("")}
+    </div>
+  `;
+
+  function refreshVar() {
+    const sel = document.getElementById("mp_var");
+    const tid = Number(document.getElementById("mp_type").value);
+    const matches = varieties.filter(v => v.crop_type_id === tid);
+    sel.innerHTML = matches.length
+      ? matches.map(v => `<option value="${v.id}">${escape(v.name)}</option>`).join("")
+      : `<option value="">— Bu tür için cins yok —</option>`;
+  }
+  refreshVar();
+  document.getElementById("mp_type").onchange = refreshVar;
+
+  document.getElementById("mp_create").onclick = async () => {
+    const varVal = document.getElementById("mp_var").value;
+    if (!varVal) return toast("Önce bir cins ekle", "error");
+    const payload = {
+      snapshot_date: document.getElementById("mp_date").value,
+      crop_type_id: Number(document.getElementById("mp_type").value),
+      crop_variety_id: Number(varVal),
+      market_price: Number(document.getElementById("mp_price").value),
+      source: document.getElementById("mp_source").value.trim() || undefined,
+      notes: document.getElementById("mp_notes").value.trim() || undefined,
+    };
+    if (!payload.snapshot_date || !(payload.market_price >= 0)) {
+      return toast("Eksik veya geçersiz alan", "error");
+    }
+    try {
+      await apiCall("/api/market-prices", { method: "POST", body: JSON.stringify(payload) });
+      toast("Eklendi");
+      renderPiyasaFiyatlari(body);
+    } catch {}
+  };
+
+  body.querySelectorAll("[data-del]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Silinsin mi?")) return;
+      await apiCall(`/api/market-prices/${btn.dataset.del}`, { method: "DELETE" });
+      renderPiyasaFiyatlari(body);
+    };
+  });
+}
+
+async function renderOrtakTab(container) {
+  container.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
+  const seasonId = state.activeSeason.id;
+  const today = new Date().toISOString().slice(0,10);
+  const recon = await apiCall(`/api/reports/reconciliation?season_id=${seasonId}`);
+  const payouts = recon.payouts || [];
+
+  const balanceLabel = recon.partner_balance > 0 ? "borç" : (recon.partner_balance < 0 ? "fazla ödenmiş" : "denk");
+  const balanceColor = recon.partner_balance > 0 ? "var(--danger)" : (recon.partner_balance < 0 ? "var(--warn)" : "var(--accent)");
+
+  container.innerHTML = `
+    <div class="card">
+      <h2>Sezon mutabakatı</h2>
+      <div class="list-item">
+        <div>Brüt ciro</div>
+        <div class="meta">₺${recon.total_revenue.toFixed(2)}</div>
+      </div>
+      <div class="list-item">
+        <div>Ortak payı (%${recon.season.partner_share_pct})</div>
+        <div class="meta">₺${recon.partner_share.toFixed(2)}</div>
+      </div>
+      <div class="list-item">
+        <div>Ödenen</div>
+        <div class="meta">₺${recon.partner_paid.toFixed(2)}</div>
+      </div>
+      <div class="list-item">
+        <div><strong>Bakiye</strong></div>
+        <div style="color:${balanceColor};font-weight:600;">₺${Math.abs(recon.partner_balance).toFixed(2)} ${balanceLabel}</div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Yeni ödeme</h2>
+      <label>Tarih</label><input id="p_date" type="date" value="${today}" />
+      <label>Tutar (TL)</label><input id="p_amount" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Yöntem</label>
+      <select id="p_method">
+        <option value="nakit">Nakit</option>
+        <option value="havale">Havale</option>
+        <option value="diğer">Diğer</option>
+      </select>
+      <label>Notlar (ops.)</label><input id="p_notes" />
+      <div style="height:12px;"></div>
+      <button class="primary" id="p_create">Kaydet</button>
+    </div>
+    <div class="card">
+      <h2>Bu sezonun ödemeleri</h2>
+      ${payouts.length === 0 ? `<div class="empty">Henüz ödeme yok.</div>` :
+        payouts.map(p => `<div class="list-item">
+          <div>
+            <div>₺${p.amount.toFixed(2)} <span class="meta">[${p.method}]</span></div>
+            <div class="meta">${p.payout_date}${p.notes ? ` · ${escape(p.notes)}` : ""}</div>
+          </div>
+          <button class="danger" data-del="${p.id}">Sil</button>
+        </div>`).join("")}
+    </div>
+  `;
+
+  document.getElementById("p_create").onclick = async () => {
+    const payload = {
+      season_id: seasonId,
+      payout_date: document.getElementById("p_date").value,
+      amount: Number(document.getElementById("p_amount").value),
+      method: document.getElementById("p_method").value,
+      notes: document.getElementById("p_notes").value.trim() || undefined,
+    };
+    if (!payload.payout_date || !(payload.amount >= 0)) {
+      return toast("Eksik veya geçersiz alan", "error");
+    }
+    try {
+      await apiCall("/api/payouts", { method: "POST", body: JSON.stringify(payload) });
+      toast("Ödeme kaydedildi");
+      renderOrtakTab(container);
+    } catch {}
+  };
+
+  container.querySelectorAll("[data-del]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Silinsin mi?")) return;
+      await apiCall(`/api/payouts/${btn.dataset.del}`, { method: "DELETE" });
+      renderOrtakTab(container);
+    };
+  });
+}
+
+async function renderPano(container) {
+  if (!state.activeSeason) {
+    container.innerHTML = `<div class="card"><h2>Pano</h2><div class="empty">Önce ayarlardan bir sezon oluştur ve aktif et.</div></div>`;
+    return;
+  }
+  container.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
+  const seasonId = state.activeSeason.id;
+  const [summary, sales, payouts] = await Promise.all([
+    apiCall(`/api/reports/season-summary?season_id=${seasonId}`),
+    apiCall(`/api/sales?season_id=${seasonId}`),
+    apiCall(`/api/payouts?season_id=${seasonId}`),
+  ]);
+
+  const balanceLabel = summary.partner_balance > 0 ? "borç" : (summary.partner_balance < 0 ? "fazla" : "denk");
+  const balanceColor = summary.partner_balance > 0 ? "var(--danger)" : (summary.partner_balance < 0 ? "var(--warn)" : "var(--accent)");
+
+  // En son 5 hareketi birleştir
+  const recent = [];
+  for (const s of sales.slice(0, 5)) {
+    recent.push({ date: s.sale_date, label: `Satış: ${s.quantity} kg ₺${s.total_revenue.toFixed(2)}` });
+  }
+  for (const p of payouts.slice(0, 5)) {
+    recent.push({ date: p.payout_date, label: `Ortak ödeme: ₺${p.amount.toFixed(2)} [${p.method}]` });
+  }
+  recent.sort((a, b) => b.date.localeCompare(a.date));
+  const top5 = recent.slice(0, 5);
+
+  container.innerHTML = `
+    <div class="card">
+      <h2>${escape(state.activeSeason.name)}</h2>
+      <div class="list-item">
+        <div>Brüt ciro</div>
+        <div class="meta" style="font-size:16px;color:var(--text);">₺${summary.total_revenue.toFixed(2)}</div>
+      </div>
+      <div class="list-item">
+        <div>Net tahmini</div>
+        <div class="meta" style="font-size:16px;color:var(--accent);">₺${summary.net_estimated.toFixed(2)}</div>
+      </div>
+      <div class="list-item">
+        <div>Ortak payı (%${summary.partner_share_pct})</div>
+        <div class="meta">₺${summary.partner_share.toFixed(2)}</div>
+      </div>
+      <div class="list-item">
+        <div>Ödenen</div>
+        <div class="meta">₺${summary.partner_paid.toFixed(2)}</div>
+      </div>
+      <div class="list-item">
+        <div><strong>Bakiye</strong></div>
+        <div style="color:${balanceColor};font-weight:600;">₺${Math.abs(summary.partner_balance).toFixed(2)} ${balanceLabel}</div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Son hareketler</h2>
+      ${top5.length === 0 ? `<div class="empty">Henüz hareket yok.</div>` :
+        top5.map(r => `<div class="list-item">
+          <div>${escape(r.label)}</div>
+          <div class="meta">${r.date}</div>
+        </div>`).join("")}
+    </div>
+  `;
 }
 
 async function renderIlacUygulama(body) {

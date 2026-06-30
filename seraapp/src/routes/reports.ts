@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { all } from "../db";
+import { all, one } from "../db";
 import { requireAuth } from "../middleware";
 import type { AppContext } from "../types";
 
@@ -28,4 +28,82 @@ reportsRouter.get("/reports/monthly-consumption", async (c) => {
     seasonId,
   );
   return c.json(rows);
+});
+
+reportsRouter.get("/reports/season-summary", async (c) => {
+  const seasonId = Number(c.req.query("season_id"));
+  if (!seasonId) return c.json({ error: "season_id required" }, 400);
+
+  const season = await one<{ id: number; name: string; partner_share_pct: number }>(
+    c.env.DB,
+    "SELECT id, name, partner_share_pct FROM seasons WHERE id=?",
+    seasonId,
+  );
+  if (!season) return c.json({ error: "season not found" }, 404);
+
+  const sales = await one<{ total_revenue: number; total_cost: number }>(
+    c.env.DB,
+    `SELECT COALESCE(SUM(total_revenue),0) AS total_revenue,
+            COALESCE(SUM(total_cost),0) AS total_cost
+       FROM sales WHERE season_id=?`,
+    seasonId,
+  );
+  const paid = await one<{ paid: number }>(
+    c.env.DB,
+    "SELECT COALESCE(SUM(amount),0) AS paid FROM partner_payouts WHERE season_id=?",
+    seasonId,
+  );
+
+  const total_revenue = sales?.total_revenue ?? 0;
+  const total_cost_recorded = sales?.total_cost ?? 0;
+  const net_estimated = total_revenue - total_cost_recorded;
+  const partner_share = +(total_revenue * (season.partner_share_pct / 100)).toFixed(2);
+  const partner_paid = paid?.paid ?? 0;
+  const partner_balance = +(partner_share - partner_paid).toFixed(2);
+
+  return c.json({
+    total_revenue,
+    total_cost_recorded,
+    net_estimated,
+    partner_share_pct: season.partner_share_pct,
+    partner_share,
+    partner_paid,
+    partner_balance,
+  });
+});
+
+reportsRouter.get("/reports/reconciliation", async (c) => {
+  const seasonId = Number(c.req.query("season_id"));
+  if (!seasonId) return c.json({ error: "season_id required" }, 400);
+
+  const season = await one<{ id: number; name: string; partner_share_pct: number }>(
+    c.env.DB,
+    "SELECT id, name, partner_share_pct FROM seasons WHERE id=?",
+    seasonId,
+  );
+  if (!season) return c.json({ error: "season not found" }, 404);
+
+  const sales = await one<{ total_revenue: number }>(
+    c.env.DB,
+    "SELECT COALESCE(SUM(total_revenue),0) AS total_revenue FROM sales WHERE season_id=?",
+    seasonId,
+  );
+  const payouts = await all(
+    c.env.DB,
+    "SELECT * FROM partner_payouts WHERE season_id=? ORDER BY payout_date DESC, id DESC",
+    seasonId,
+  );
+  const partner_paid = payouts.reduce((sum: number, p: any) => sum + (p.amount ?? 0), 0);
+  const total_revenue = sales?.total_revenue ?? 0;
+  const partner_share = +(total_revenue * (season.partner_share_pct / 100)).toFixed(2);
+  const partner_balance = +(partner_share - partner_paid).toFixed(2);
+
+  return c.json({
+    season,
+    total_revenue,
+    partner_share,
+    partner_paid,
+    partner_balance,
+    payouts,
+  });
 });
