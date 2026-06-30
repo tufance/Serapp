@@ -1,4 +1,170 @@
 const app = document.getElementById("app");
-app.innerHTML = `<div class="empty">Yükleniyor…</div>`;
 
-// Burada gerçek SPA render Task 24'ten itibaren doldurulacak
+const state = {
+  authed: false,
+  needsSetup: false,
+  activeSeason: null,
+  page: "loading", // loading|setup|login|home
+};
+
+async function apiCall(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { "content-type": "application/json", ...(opts.headers || {}) },
+    credentials: "same-origin",
+  });
+  if (res.status === 401) {
+    state.authed = false;
+    if (state.page !== "setup") state.page = "login";
+    render();
+    throw new Error("unauthorized");
+  }
+  if (!res.ok && res.status !== 204) {
+    let msg = "Beklenmedik hata";
+    try { msg = (await res.json()).error || msg; } catch {}
+    toast(msg, "error");
+    throw new Error(msg);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+function toast(message, kind = "") {
+  const el = document.createElement("div");
+  el.className = `toast ${kind}`;
+  el.textContent = message;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+function html(strings, ...values) {
+  // basit template helper; XSS önlemiyor — tüm dinamik metinler textContent ile yazılır
+  return strings.reduce((acc, s, i) => acc + s + (values[i] ?? ""), "");
+}
+
+// --- Sayfalar ---
+
+function renderLoading() {
+  app.innerHTML = `<div class="empty">Yükleniyor…</div>`;
+}
+
+function renderSetup() {
+  app.innerHTML = `
+    <main>
+      <h1 style="text-align:center; margin-top:40px;">Hoş geldin</h1>
+      <p style="text-align:center; color:var(--muted);">İlk kurulum: parola belirle.</p>
+      <div class="card" style="margin-top:24px;">
+        <label>Parola</label>
+        <input id="pw" type="password" autocomplete="new-password" />
+        <div style="height:16px;"></div>
+        <button class="primary" id="submit">Kur</button>
+      </div>
+    </main>
+  `;
+  document.getElementById("submit").onclick = async () => {
+    const pw = document.getElementById("pw").value;
+    if (!pw) return toast("Parola gerekli", "error");
+    try {
+      await apiCall("/api/setup", { method: "POST", body: JSON.stringify({ password: pw }) });
+      toast("Kurulum tamam. Giriş yapabilirsin.");
+      state.needsSetup = false;
+      state.page = "login";
+      render();
+    } catch {}
+  };
+}
+
+function renderLogin() {
+  app.innerHTML = `
+    <main>
+      <h1 style="text-align:center; margin-top:40px;">Sera Takip</h1>
+      <div class="card" style="margin-top:24px;">
+        <label>Parola</label>
+        <input id="pw" type="password" autocomplete="current-password" />
+        <div style="height:16px;"></div>
+        <button class="primary" id="submit">Giriş</button>
+      </div>
+    </main>
+  `;
+  document.getElementById("submit").onclick = async () => {
+    const pw = document.getElementById("pw").value;
+    try {
+      await apiCall("/api/auth/login", { method: "POST", body: JSON.stringify({ password: pw }) });
+      state.authed = true;
+      state.page = "home";
+      await bootstrap();
+    } catch {}
+  };
+}
+
+function renderHome() {
+  // Task 24'te gerçek sekmeli yapı gelecek; şimdilik placeholder
+  app.innerHTML = `
+    <header class="season-bar">
+      <div>
+        <div class="label">Aktif sezon</div>
+        <div class="value">${state.activeSeason ? escape(state.activeSeason.name) : "—"}</div>
+      </div>
+      <button class="settings" id="logout" aria-label="Çıkış">⎋</button>
+    </header>
+    <main>
+      <div class="card">
+        <h2>Pano</h2>
+        <div class="empty">Modüller sonraki fazlarda gelecek.</div>
+      </div>
+    </main>
+  `;
+  document.getElementById("logout").onclick = async () => {
+    await apiCall("/api/auth/logout", { method: "POST" }).catch(()=>{});
+    state.authed = false;
+    state.page = "login";
+    render();
+  };
+}
+
+function escape(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function render() {
+  if (state.page === "loading") renderLoading();
+  else if (state.page === "setup") renderSetup();
+  else if (state.page === "login") renderLogin();
+  else if (state.page === "home") renderHome();
+}
+
+async function bootstrap() {
+  state.page = "loading";
+  render();
+  try {
+    const me = await fetch("/api/me", { credentials: "same-origin" });
+    if (me.status === 401) {
+      // setup gerekli mi?
+      const probe = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ password: "__probe__" }),
+      });
+      if (probe.status === 401) {
+        // login mevcut, ama probe ile kontrol için: setup yapılmış mı?
+        const errBody = await probe.json().catch(() => ({}));
+        state.needsSetup = errBody.error === "not initialized";
+      }
+      state.authed = false;
+      state.page = state.needsSetup ? "setup" : "login";
+    } else if (me.ok) {
+      state.authed = true;
+      state.page = "home";
+      // aktif sezonu fetch et
+      const seasons = await apiCall("/api/seasons").catch(() => []);
+      state.activeSeason = seasons.find((s) => s.is_active) ?? null;
+    }
+  } catch (e) {
+    state.page = "login";
+  }
+  render();
+}
+
+bootstrap();
