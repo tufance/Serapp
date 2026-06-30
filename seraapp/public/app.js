@@ -223,7 +223,30 @@ async function renderFidanAlim(body) {
   ]);
   const today = new Date().toISOString().slice(0,10);
 
+  // Stock = aggregate this season's seedling purchases by (type, variety)
+  const stockMap = new Map();
+  for (const r of list) {
+    const key = `${r.crop_type_id}:${r.crop_variety_id}`;
+    stockMap.set(key, (stockMap.get(key) ?? 0) + r.quantity);
+  }
+  const stockRows = [...stockMap.entries()]
+    .map(([key, qty]) => {
+      const [tid, vid] = key.split(":").map(Number);
+      const t = types.find(x => x.id === tid);
+      const v = varieties.find(x => x.id === vid);
+      return { name: `${t?.name ?? "?"} · ${v?.name ?? "?"}`, qty };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, "tr"));
+
   body.innerHTML = `
+    <div class="card">
+      <h2>Stok durumu (bu sezon)</h2>
+      ${stockRows.length === 0 ? `<div class="empty">Henüz fidan alımı yok.</div>` :
+        stockRows.map(s => `<div class="list-item">
+          <div>${escape(s.name)}</div>
+          <div class="meta">${s.qty} adet</div>
+        </div>`).join("")}
+    </div>
     <div class="card">
       <h2>Yeni fidan alımı</h2>
       <label>Tarih</label><input id="f_date" type="date" value="${today}" />
