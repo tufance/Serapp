@@ -8,6 +8,8 @@ const app = new Hono<AppContext>();
 
 app.get("/api/health", (c) => c.json({ ok: true }));
 app.route("/api", setupRouter);
+app.use("/api/auth/logout", requireAuth);
+app.use("/api/auth/change-password", requireAuth);
 app.route("/api", authRouter);
 
 app.use("/api/me", requireAuth);
