@@ -1177,6 +1177,7 @@ async function renderPano(container) {
   const balanceLabel = summary.partner_balance > 0 ? "borç" : (summary.partner_balance < 0 ? "fazla" : "denk");
   const balanceColor = summary.partner_balance > 0 ? "var(--danger)" : (summary.partner_balance < 0 ? "var(--warn)" : "var(--accent)");
   const netColor = summary.net_estimated > 0 ? "var(--accent)" : (summary.net_estimated < 0 ? "var(--danger)" : "var(--text)");
+  const totalExpenses = (summary.seedling_cost ?? 0) + (summary.supply_cost ?? 0) + (summary.medicine_cost ?? 0) + (summary.partner_paid ?? 0);
 
   const recent = [];
   for (const s of sales.slice(0, 5)) {
@@ -1218,11 +1219,17 @@ async function renderPano(container) {
 
     <div class="card">
       <h2>${escape(state.activeSeason.name)}</h2>
-      <div class="list-item"><div>Brüt ciro</div><div class="meta" style="font-size:16px;color:var(--text);">₺${summary.total_revenue.toFixed(2)}</div></div>
-      <div class="list-item"><div>Fidan alımı</div><div class="meta" style="color:var(--danger);">− ₺${(summary.seedling_cost ?? 0).toFixed(2)}</div></div>
-      <div class="list-item"><div>Sarf alımı</div><div class="meta" style="color:var(--danger);">− ₺${(summary.supply_cost ?? 0).toFixed(2)}</div></div>
-      <div class="list-item"><div>İlaç alımı</div><div class="meta" style="color:var(--danger);">− ₺${(summary.medicine_cost ?? 0).toFixed(2)}</div></div>
-      <div class="list-item"><div>Ortağa ödenen</div><div class="meta" style="color:var(--danger);">− ₺${summary.partner_paid.toFixed(2)}</div></div>
+      <div class="list-item"><div>Brüt ciro <span class="meta">(Gelir)</span></div><div class="meta" style="font-size:16px;color:var(--text);">₺${summary.total_revenue.toFixed(2)}</div></div>
+      <details class="expense-group">
+        <summary class="list-item">
+          <div><span class="caret">▸</span> Gider</div>
+          <div class="meta" style="font-size:16px;color:var(--danger);">− ₺${totalExpenses.toFixed(2)}</div>
+        </summary>
+        <div class="list-item sub"><div>Fidan alımı</div><div class="meta" style="color:var(--danger);">− ₺${(summary.seedling_cost ?? 0).toFixed(2)}</div></div>
+        <div class="list-item sub"><div>Sarf alımı</div><div class="meta" style="color:var(--danger);">− ₺${(summary.supply_cost ?? 0).toFixed(2)}</div></div>
+        <div class="list-item sub"><div>İlaç alımı</div><div class="meta" style="color:var(--danger);">− ₺${(summary.medicine_cost ?? 0).toFixed(2)}</div></div>
+        <div class="list-item sub"><div>Ortağa ödenen</div><div class="meta" style="color:var(--danger);">− ₺${summary.partner_paid.toFixed(2)}</div></div>
+      </details>
       <div class="list-item"><div><strong>Net tahmini</strong></div><div class="meta" style="font-size:16px;font-weight:600;color:${netColor};">₺${summary.net_estimated.toFixed(2)}</div></div>
       <div class="list-item"><div>Ortak payı (%${summary.partner_share_pct})</div><div class="meta">₺${summary.partner_share.toFixed(2)}</div></div>
       <div class="list-item"><div><strong>Bakiye</strong></div><div style="color:${balanceColor};font-weight:600;">₺${Math.abs(summary.partner_balance).toFixed(2)} ${balanceLabel}</div></div>

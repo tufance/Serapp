@@ -141,6 +141,32 @@ label { display: block; color: var(--muted); font-size: 13px; margin: 12px 0 6px
 .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
 .modal-actions button { flex: 1; }
 
+/* Collapsible expense group on Pano sezon özeti */
+details.expense-group { border-bottom: 1px solid var(--line); }
+details.expense-group:last-child { border-bottom: 0; }
+details.expense-group > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+}
+details.expense-group > summary::-webkit-details-marker { display: none; }
+details.expense-group > summary .caret {
+  display: inline-block;
+  margin-right: 4px;
+  transition: transform 0.15s ease;
+  color: var(--muted);
+}
+details.expense-group[open] > summary .caret { transform: rotate(90deg); }
+.list-item.sub {
+  padding-left: 24px;
+  font-size: 14px;
+}
+.list-item.sub:first-of-type { border-top: 1px dashed var(--line); }
+
 /* Segmented sub-tab control (used inside Alım/Hareket/Satış) */
 .tabs-pill {
   display: flex;
