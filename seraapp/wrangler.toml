@@ -9,9 +9,9 @@ binding = "ASSETS"
 [[d1_databases]]
 binding = "DB"
 database_name = "seraapp"
-database_id = "PLACEHOLDER_FILL_AFTER_CREATE"
+database_id = "85fd29b3-4366-4cd0-8975-47b44473e99d"
 migrations_dir = "migrations"
 
 [[kv_namespaces]]
 binding = "SESSIONS"
-id = "PLACEHOLDER_FILL_AFTER_CREATE"
+id = "5b67d7075d404691a00e68d7b669ea5e"
