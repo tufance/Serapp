@@ -11,14 +11,14 @@ const TABS = [
   { key: "pano", label: "Pano" },
   { key: "alim", label: "Alım" },
   { key: "hareket", label: "Hareket" },
-  { key: "satis", label: "Satış" },
+  { key: "satis", label: "Piyasa" },
   { key: "ortak", label: "Ortak" },
 ];
 
 state.activeTab = state.activeTab || "pano";
 state.alimSubTab = state.alimSubTab || "fidan";
 state.hareketSubTab = state.hareketSubTab || "ilac";
-state.satisSubTab = state.satisSubTab || "satislar";
+state.satisSubTab = state.satisSubTab || "piyasa";
 state.settingsOpen = state.settingsOpen || false;
 state.settingsTab = state.settingsTab || "seasons";
 
@@ -638,8 +638,8 @@ async function renderTuketim(body) {
 
 function renderSatisTab(container) {
   const SUBS = [
-    { key: "satislar", label: "Satışlar" },
     { key: "piyasa", label: "Piyasa fiyatları" },
+    { key: "satislar", label: "Satışlar" },
   ];
   container.innerHTML = `
     <div class="tabs-pill">
