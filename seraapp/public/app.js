@@ -363,7 +363,99 @@ async function renderSarfAlim(body) {
     };
   });
 }
-async function renderIlacAlim(body) { body.innerHTML = `<div class="card"><div class="empty">İlaç UI (Task 15)</div></div>`; }
+async function renderIlacAlim(body) {
+  body.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
+  const seasonId = state.activeSeason.id;
+  const [meds, list, stock] = await Promise.all([
+    apiCall("/api/master/medicines"),
+    apiCall(`/api/medicine-purchases?season_id=${seasonId}`),
+    apiCall("/api/stock/medicines"),
+  ]);
+  const today = new Date().toISOString().slice(0,10);
+
+  body.innerHTML = `
+    <div class="card">
+      <h2>Stok durumu</h2>
+      ${stock.length === 0 ? `<div class="empty">Henüz stok hareketi yok.</div>` :
+        stock.map(s => `<div class="list-item">
+          <div>${escape(s.name)}</div>
+          <div class="meta">${s.balance} ${escape(s.unit)}</div>
+        </div>`).join("")}
+    </div>
+    <div class="card">
+      <h2>Yeni ilaç alımı</h2>
+      <label>Tarih</label><input id="mp_date" type="date" value="${today}" />
+      <label>İlaç</label>
+      <select id="mp_med">${meds.map(m => `<option value="${m.id}" data-unit="${escape(m.unit)}">${escape(m.name)} (${escape(m.unit)})</option>`).join("")}</select>
+      <label>Miktar</label><input id="mp_qty" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Birim (otomatik)</label><input id="mp_unit" readonly />
+      <label>Birim maliyet (TL)</label><input id="mp_uc" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Toplam (TL)</label><input id="mp_tc" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Tedarikçi (ops.)</label><input id="mp_supplier" />
+      <label>Notlar (ops.)</label><input id="mp_notes" />
+      <div style="height:12px;"></div>
+      <button class="primary" id="mp_create">Kaydet</button>
+    </div>
+    <div class="card">
+      <h2>Bu sezonun ilaç alımları</h2>
+      ${list.length === 0 ? `<div class="empty">Henüz alım yok.</div>` :
+        list.map(r => {
+          const m = meds.find(x => x.id === r.medicine_id);
+          return `<div class="list-item">
+            <div>
+              <div>${escape(m?.name ?? "?")}</div>
+              <div class="meta">${r.purchase_date} · ${r.quantity} ${escape(r.unit)} × ₺${r.unit_cost.toFixed(2)} = ₺${r.total_cost.toFixed(2)}</div>
+            </div>
+            <button class="danger" data-del="${r.id}">Sil</button>
+          </div>`;
+        }).join("")}
+    </div>
+  `;
+
+  function syncUnit() {
+    const sel = document.getElementById("mp_med");
+    document.getElementById("mp_unit").value = sel.options[sel.selectedIndex]?.dataset.unit ?? "";
+  }
+  syncUnit();
+  document.getElementById("mp_med").onchange = syncUnit;
+
+  const qty = document.getElementById("mp_qty"), uc = document.getElementById("mp_uc"), tc = document.getElementById("mp_tc");
+  function recalc() {
+    const q = Number(qty.value), u = Number(uc.value);
+    if (q > 0 && u >= 0) tc.value = (q * u).toFixed(2);
+  }
+  qty.oninput = recalc; uc.oninput = recalc;
+
+  document.getElementById("mp_create").onclick = async () => {
+    const payload = {
+      season_id: seasonId,
+      purchase_date: document.getElementById("mp_date").value,
+      medicine_id: Number(document.getElementById("mp_med").value),
+      quantity: Number(qty.value),
+      unit: document.getElementById("mp_unit").value,
+      unit_cost: Number(uc.value),
+      total_cost: Number(tc.value),
+      supplier: document.getElementById("mp_supplier").value.trim() || undefined,
+      notes: document.getElementById("mp_notes").value.trim() || undefined,
+    };
+    if (!payload.purchase_date || !(payload.quantity > 0) || !payload.unit) {
+      return toast("Eksik veya geçersiz alan", "error");
+    }
+    try {
+      await apiCall("/api/medicine-purchases", { method: "POST", body: JSON.stringify(payload) });
+      toast("Eklendi");
+      renderIlacAlim(body);
+    } catch {}
+  };
+
+  body.querySelectorAll("[data-del]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Silinsin mi?")) return;
+      await apiCall(`/api/medicine-purchases/${btn.dataset.del}`, { method: "DELETE" });
+      renderIlacAlim(body);
+    };
+  });
+}
 async function renderHareketTab(container) { container.innerHTML = `<div class="card"><div class="empty">İlaç uygulamaları UI (Task 16)</div></div>`; }
 
 function renderSettings() {
