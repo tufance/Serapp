@@ -1288,12 +1288,10 @@ function renderSettings() {
       <button class="settings" id="logout" aria-label="Çıkış">⎋</button>
     </header>
     <main>
-      <div class="card">
-        <div class="row" style="gap:8px; flex-wrap:wrap;">
-          ${["seasons","types","supplies","medicines","password"].map(k =>
-            `<button class="${state.settingsTab===k?"primary":"secondary"}" data-stab="${k}">${({seasons:"Sezonlar",types:"Tür/Cins",supplies:"Sarf/Utility",medicines:"İlaç/Hastalık",password:"Parola"})[k]}</button>`
-          ).join("")}
-        </div>
+      <div class="tabs-pill">
+        ${["seasons","types","supplies","medicines","password"].map(k =>
+          `<button class="${state.settingsTab===k?"active":""}" data-stab="${k}">${({seasons:"Sezon",types:"Tür",supplies:"Sarf",medicines:"İlaç",password:"Parola"})[k]}</button>`
+        ).join("")}
       </div>
       <div id="settingsBody"></div>
     </main>
