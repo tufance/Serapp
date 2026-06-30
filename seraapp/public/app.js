@@ -988,7 +988,14 @@ async function renderOrtakTab(container) {
 
 async function renderPano(container) {
   if (!state.activeSeason) {
-    container.innerHTML = `<div class="card"><h2>Pano</h2><div class="empty">Önce ⚙ Ayarlar > Sezonlar'dan bir sezon oluşturup "Aktif et" deyin.</div></div>`;
+    container.innerHTML = `
+      <div class="card" style="text-align:center; padding:20px 16px;">
+        <img src="/logo.svg" alt="" style="width:56px; height:56px; display:block; margin:0 auto;" />
+        <h1 style="margin:8px 0 0; font-size:22px; letter-spacing:0.5px;">SerApp</h1>
+        <p style="margin:4px 0 0; color:var(--muted); font-size:13px;">Sera takip ve mutabakat</p>
+      </div>
+      <div class="card"><h2>Pano</h2><div class="empty">Önce ⚙ Ayarlar > Sezonlar'dan bir sezon oluşturup "Aktif et" deyin.</div></div>
+    `;
     return;
   }
   container.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
@@ -1039,6 +1046,11 @@ async function renderPano(container) {
   const allDates = [...new Set(prices.map(p => p.snapshot_date))].sort();
 
   container.innerHTML = `
+    <div class="card" style="text-align:center; padding:20px 16px;">
+      <img src="/logo.svg" alt="" style="width:56px; height:56px; display:block; margin:0 auto;" />
+      <h1 style="margin:8px 0 0; font-size:22px; letter-spacing:0.5px;">SerApp</h1>
+      <p style="margin:4px 0 0; color:var(--muted); font-size:13px;">Sera takip ve mutabakat</p>
+    </div>
     <div class="card">
       <h2>${escape(state.activeSeason.name)}</h2>
       <div class="list-item"><div>Brüt ciro</div><div class="meta" style="font-size:16px;color:var(--text);">₺${summary.total_revenue.toFixed(2)}</div></div>
