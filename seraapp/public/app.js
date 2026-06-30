@@ -140,7 +140,7 @@ function renderTabContent() {
     return;
   }
   if (state.activeTab === "pano") {
-    c.innerHTML = `<div class="card"><h2>Pano</h2><div class="empty">Sonraki fazlarda dolacak.</div></div>`;
+    renderPano(c);
   } else if (state.activeTab === "alim") {
     renderAlimTab(c);
   } else if (state.activeTab === "hareket") {
@@ -898,6 +898,68 @@ async function renderOrtakTab(container) {
       renderOrtakTab(container);
     };
   });
+}
+
+async function renderPano(container) {
+  if (!state.activeSeason) {
+    container.innerHTML = `<div class="card"><h2>Pano</h2><div class="empty">Önce ayarlardan bir sezon oluştur ve aktif et.</div></div>`;
+    return;
+  }
+  container.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
+  const seasonId = state.activeSeason.id;
+  const [summary, sales, payouts] = await Promise.all([
+    apiCall(`/api/reports/season-summary?season_id=${seasonId}`),
+    apiCall(`/api/sales?season_id=${seasonId}`),
+    apiCall(`/api/payouts?season_id=${seasonId}`),
+  ]);
+
+  const balanceLabel = summary.partner_balance > 0 ? "borç" : (summary.partner_balance < 0 ? "fazla" : "denk");
+  const balanceColor = summary.partner_balance > 0 ? "var(--danger)" : (summary.partner_balance < 0 ? "var(--warn)" : "var(--accent)");
+
+  // En son 5 hareketi birleştir
+  const recent = [];
+  for (const s of sales.slice(0, 5)) {
+    recent.push({ date: s.sale_date, label: `Satış: ${s.quantity} kg ₺${s.total_revenue.toFixed(2)}` });
+  }
+  for (const p of payouts.slice(0, 5)) {
+    recent.push({ date: p.payout_date, label: `Ortak ödeme: ₺${p.amount.toFixed(2)} [${p.method}]` });
+  }
+  recent.sort((a, b) => b.date.localeCompare(a.date));
+  const top5 = recent.slice(0, 5);
+
+  container.innerHTML = `
+    <div class="card">
+      <h2>${escape(state.activeSeason.name)}</h2>
+      <div class="list-item">
+        <div>Brüt ciro</div>
+        <div class="meta" style="font-size:16px;color:var(--text);">₺${summary.total_revenue.toFixed(2)}</div>
+      </div>
+      <div class="list-item">
+        <div>Net tahmini</div>
+        <div class="meta" style="font-size:16px;color:var(--accent);">₺${summary.net_estimated.toFixed(2)}</div>
+      </div>
+      <div class="list-item">
+        <div>Ortak payı (%${summary.partner_share_pct})</div>
+        <div class="meta">₺${summary.partner_share.toFixed(2)}</div>
+      </div>
+      <div class="list-item">
+        <div>Ödenen</div>
+        <div class="meta">₺${summary.partner_paid.toFixed(2)}</div>
+      </div>
+      <div class="list-item">
+        <div><strong>Bakiye</strong></div>
+        <div style="color:${balanceColor};font-weight:600;">₺${Math.abs(summary.partner_balance).toFixed(2)} ${balanceLabel}</div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Son hareketler</h2>
+      ${top5.length === 0 ? `<div class="empty">Henüz hareket yok.</div>` :
+        top5.map(r => `<div class="list-item">
+          <div>${escape(r.label)}</div>
+          <div class="meta">${r.date}</div>
+        </div>`).join("")}
+    </div>
+  `;
 }
 
 async function renderIlacUygulama(body) {
