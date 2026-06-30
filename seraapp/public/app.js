@@ -457,10 +457,146 @@ async function renderIlacAlim(body) {
   });
 }
 async function renderHareketTab(container) {
-  // Şimdilik tek alt-sekme; Faz 3'te "Tüketim" eklenecek
-  container.innerHTML = `<div id="hareketBody"></div>`;
+  const SUBS = [
+    { key: "ilac", label: "İlaç uygulaması" },
+    { key: "tuketim", label: "Tüketim" },
+  ];
+  container.innerHTML = `
+    <div class="card">
+      <div class="row" style="gap:8px; flex-wrap:wrap;">
+        ${SUBS.map(s =>
+          `<button class="${state.hareketSubTab===s.key?"primary":"secondary"}" data-sub="${s.key}">${s.label}</button>`
+        ).join("")}
+      </div>
+    </div>
+    <div id="hareketBody"></div>
+  `;
+  container.querySelectorAll("[data-sub]").forEach(b => {
+    b.onclick = () => { state.hareketSubTab = b.dataset.sub; renderTabContent(); };
+  });
   const body = document.getElementById("hareketBody");
-  await renderIlacUygulama(body);
+  if (state.hareketSubTab === "ilac") await renderIlacUygulama(body);
+  else if (state.hareketSubTab === "tuketim") await renderTuketim(body);
+}
+
+async function renderTuketim(body) {
+  body.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
+  const seasonId = state.activeSeason.id;
+  const [supplies, utilities, list, monthly] = await Promise.all([
+    apiCall("/api/master/supplies"),
+    apiCall("/api/master/utilities"),
+    apiCall(`/api/consumption?season_id=${seasonId}`),
+    apiCall(`/api/reports/monthly-consumption?season_id=${seasonId}`),
+  ]);
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+
+  const monthlyTotals = {};
+  for (const r of monthly) {
+    monthlyTotals[r.period_month] = (monthlyTotals[r.period_month] || 0) + (r.total_cost || 0);
+  }
+  const monthsSorted = Object.keys(monthlyTotals).sort().reverse();
+
+  body.innerHTML = `
+    <div class="card">
+      <h2>Aylık tüketim özeti</h2>
+      ${monthsSorted.length === 0 ? `<div class="empty">Henüz kayıt yok.</div>` :
+        monthsSorted.map(m => `<div class="list-item">
+          <div>${m}</div>
+          <div class="meta">₺${monthlyTotals[m].toFixed(2)}</div>
+        </div>`).join("")}
+    </div>
+    <div class="card">
+      <h2>Yeni tüketim kaydı</h2>
+      <label>Tür</label>
+      <select id="t_type">
+        <option value="supply">Sarf (stoklu)</option>
+        <option value="utility">Tüketim kalemi (elektrik/su...)</option>
+      </select>
+      <label>Kalem</label>
+      <select id="t_ref"></select>
+      <label>Dönem (ay)</label><input id="t_month" type="month" value="${currentMonth}" />
+      <label>Miktar</label><input id="t_qty" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Birim (otomatik)</label><input id="t_unit" readonly />
+      <label>Birim maliyet (ops.)</label><input id="t_uc" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Toplam (TL, ops.)</label><input id="t_tc" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Notlar (ops.)</label><input id="t_notes" />
+      <div style="height:12px;"></div>
+      <button class="primary" id="t_create">Kaydet</button>
+    </div>
+    <div class="card">
+      <h2>Bu sezonun kayıtları</h2>
+      ${list.length === 0 ? `<div class="empty">Henüz kayıt yok.</div>` :
+        list.map(r => {
+          const pool = r.item_type === "supply" ? supplies : utilities;
+          const it = pool.find(x => x.id === r.ref_id);
+          const cost = r.total_cost != null ? ` · ₺${r.total_cost.toFixed(2)}` : "";
+          return `<div class="list-item">
+            <div>
+              <div>${escape(it?.name ?? "?")} <span class="meta">[${r.item_type}]</span></div>
+              <div class="meta">${r.period_month} · ${r.quantity} ${escape(r.unit)}${cost}</div>
+            </div>
+            <button class="danger" data-del="${r.id}">Sil</button>
+          </div>`;
+        }).join("")}
+    </div>
+  `;
+
+  function refreshRefOptions() {
+    const type = document.getElementById("t_type").value;
+    const pool = type === "supply" ? supplies : utilities;
+    const sel = document.getElementById("t_ref");
+    sel.innerHTML = pool.length
+      ? pool.map(p => `<option value="${p.id}" data-unit="${escape(p.unit)}">${escape(p.name)} (${escape(p.unit)})</option>`).join("")
+      : `<option value="">— Bu tür için kalem yok —</option>`;
+    syncUnit();
+  }
+  function syncUnit() {
+    const sel = document.getElementById("t_ref");
+    document.getElementById("t_unit").value = sel.options[sel.selectedIndex]?.dataset.unit ?? "";
+  }
+  refreshRefOptions();
+  document.getElementById("t_type").onchange = refreshRefOptions;
+  document.getElementById("t_ref").onchange = syncUnit;
+
+  const qty = document.getElementById("t_qty"), uc = document.getElementById("t_uc"), tc = document.getElementById("t_tc");
+  function recalc() {
+    const q = Number(qty.value), u = Number(uc.value);
+    if (q > 0 && u >= 0) tc.value = (q * u).toFixed(2);
+  }
+  qty.oninput = recalc; uc.oninput = recalc;
+
+  document.getElementById("t_create").onclick = async () => {
+    const refVal = document.getElementById("t_ref").value;
+    if (!refVal) return toast("Kalem seç", "error");
+    const payload = {
+      season_id: seasonId,
+      period_month: document.getElementById("t_month").value,
+      item_type: document.getElementById("t_type").value,
+      ref_id: Number(refVal),
+      quantity: Number(qty.value),
+      unit: document.getElementById("t_unit").value,
+      unit_cost: uc.value ? Number(uc.value) : undefined,
+      total_cost: tc.value ? Number(tc.value) : undefined,
+      notes: document.getElementById("t_notes").value.trim() || undefined,
+    };
+    if (!payload.period_month || !(payload.quantity > 0) || !payload.unit) {
+      return toast("Eksik veya geçersiz alan", "error");
+    }
+    try {
+      await apiCall("/api/consumption", { method: "POST", body: JSON.stringify(payload) });
+      toast("Eklendi");
+      renderTuketim(body);
+    } catch {}
+  };
+
+  body.querySelectorAll("[data-del]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Silinsin mi?")) return;
+      await apiCall(`/api/consumption/${btn.dataset.del}`, { method: "DELETE" });
+      renderTuketim(body);
+    };
+  });
 }
 
 async function renderIlacUygulama(body) {
