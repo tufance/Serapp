@@ -1347,7 +1347,7 @@ async function renderMasterCRUD(body, opts) {
       }
     </div>
   `;
-  document.getElementById("m_create").onclick = async () => {
+  body.querySelector("#m_create").onclick = async () => {
     const payload = {};
     for (const f of opts.fields) {
       const el = body.querySelector(`[data-k="${f.key}"]`);
