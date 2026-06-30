@@ -147,6 +147,8 @@ function renderTabContent() {
     renderHareketTab(c);
   } else if (state.activeTab === "satis") {
     renderSatisTab(c);
+  } else if (state.activeTab === "ortak") {
+    renderOrtakTab(c);
   } else {
     c.innerHTML = `<div class="card"><h2>${escape(TABS.find(t=>t.key===state.activeTab).label)}</h2><div class="empty">Bu modül sonraki fazlarda gelecek.</div></div>`;
   }
@@ -810,6 +812,90 @@ async function renderPiyasaFiyatlari(body) {
       if (!confirm("Silinsin mi?")) return;
       await apiCall(`/api/market-prices/${btn.dataset.del}`, { method: "DELETE" });
       renderPiyasaFiyatlari(body);
+    };
+  });
+}
+
+async function renderOrtakTab(container) {
+  container.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
+  const seasonId = state.activeSeason.id;
+  const today = new Date().toISOString().slice(0,10);
+  const recon = await apiCall(`/api/reports/reconciliation?season_id=${seasonId}`);
+  const payouts = recon.payouts || [];
+
+  const balanceLabel = recon.partner_balance > 0 ? "borç" : (recon.partner_balance < 0 ? "fazla ödenmiş" : "denk");
+  const balanceColor = recon.partner_balance > 0 ? "var(--danger)" : (recon.partner_balance < 0 ? "var(--warn)" : "var(--accent)");
+
+  container.innerHTML = `
+    <div class="card">
+      <h2>Sezon mutabakatı</h2>
+      <div class="list-item">
+        <div>Brüt ciro</div>
+        <div class="meta">₺${recon.total_revenue.toFixed(2)}</div>
+      </div>
+      <div class="list-item">
+        <div>Ortak payı (%${recon.season.partner_share_pct})</div>
+        <div class="meta">₺${recon.partner_share.toFixed(2)}</div>
+      </div>
+      <div class="list-item">
+        <div>Ödenen</div>
+        <div class="meta">₺${recon.partner_paid.toFixed(2)}</div>
+      </div>
+      <div class="list-item">
+        <div><strong>Bakiye</strong></div>
+        <div style="color:${balanceColor};font-weight:600;">₺${Math.abs(recon.partner_balance).toFixed(2)} ${balanceLabel}</div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Yeni ödeme</h2>
+      <label>Tarih</label><input id="p_date" type="date" value="${today}" />
+      <label>Tutar (TL)</label><input id="p_amount" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Yöntem</label>
+      <select id="p_method">
+        <option value="nakit">Nakit</option>
+        <option value="havale">Havale</option>
+        <option value="diğer">Diğer</option>
+      </select>
+      <label>Notlar (ops.)</label><input id="p_notes" />
+      <div style="height:12px;"></div>
+      <button class="primary" id="p_create">Kaydet</button>
+    </div>
+    <div class="card">
+      <h2>Bu sezonun ödemeleri</h2>
+      ${payouts.length === 0 ? `<div class="empty">Henüz ödeme yok.</div>` :
+        payouts.map(p => `<div class="list-item">
+          <div>
+            <div>₺${p.amount.toFixed(2)} <span class="meta">[${p.method}]</span></div>
+            <div class="meta">${p.payout_date}${p.notes ? ` · ${escape(p.notes)}` : ""}</div>
+          </div>
+          <button class="danger" data-del="${p.id}">Sil</button>
+        </div>`).join("")}
+    </div>
+  `;
+
+  document.getElementById("p_create").onclick = async () => {
+    const payload = {
+      season_id: seasonId,
+      payout_date: document.getElementById("p_date").value,
+      amount: Number(document.getElementById("p_amount").value),
+      method: document.getElementById("p_method").value,
+      notes: document.getElementById("p_notes").value.trim() || undefined,
+    };
+    if (!payload.payout_date || !(payload.amount >= 0)) {
+      return toast("Eksik veya geçersiz alan", "error");
+    }
+    try {
+      await apiCall("/api/payouts", { method: "POST", body: JSON.stringify(payload) });
+      toast("Ödeme kaydedildi");
+      renderOrtakTab(container);
+    } catch {}
+  };
+
+  container.querySelectorAll("[data-del]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Silinsin mi?")) return;
+      await apiCall(`/api/payouts/${btn.dataset.del}`, { method: "DELETE" });
+      renderOrtakTab(container);
     };
   });
 }
