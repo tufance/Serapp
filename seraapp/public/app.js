@@ -13,12 +13,14 @@ const TABS = [
   { key: "hareket", label: "Hareket" },
   { key: "satis", label: "Piyasa" },
   { key: "ortak", label: "Ortak" },
+  { key: "notlar", label: "Notlar" },
 ];
 
 state.activeTab = state.activeTab || "pano";
 state.alimSubTab = state.alimSubTab || "fidan";
 state.hareketSubTab = state.hareketSubTab || "ilac";
 state.satisSubTab = state.satisSubTab || "piyasa";
+state.notlarCategoryFilter = state.notlarCategoryFilter || "";
 state.settingsOpen = state.settingsOpen || false;
 state.settingsTab = state.settingsTab || "seasons";
 
@@ -171,7 +173,8 @@ function renderHome() {
 
 function renderTabContent() {
   const c = document.getElementById("content");
-  if (!state.activeSeason && state.activeTab !== "pano") {
+  // Notes are season-independent; everything else needs an active season
+  if (!state.activeSeason && state.activeTab !== "pano" && state.activeTab !== "notlar") {
     c.innerHTML = `<div class="card"><div class="empty">Önce ⚙ Ayarlar > Sezonlar'dan bir sezon oluşturup "Aktif et" deyin.</div></div>`;
     return;
   }
@@ -185,6 +188,8 @@ function renderTabContent() {
     renderSatisTab(c);
   } else if (state.activeTab === "ortak") {
     renderOrtakTab(c);
+  } else if (state.activeTab === "notlar") {
+    renderNotlarTab(c);
   } else {
     c.innerHTML = `<div class="card"><h2>${escape(TABS.find(t=>t.key===state.activeTab).label)}</h2><div class="empty">Bu modül sonraki fazlarda gelecek.</div></div>`;
   }
@@ -1045,6 +1050,125 @@ async function renderOrtakTab(container) {
   });
 }
 
+async function renderNotlarTab(container) {
+  container.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
+  const [categories, allNotes] = await Promise.all([
+    apiCall("/api/master/note-categories"),
+    apiCall("/api/notes"),
+  ]);
+  const filterId = state.notlarCategoryFilter;
+  const filteredNotes = filterId ? allNotes.filter(n => String(n.category_id) === String(filterId)) : allNotes;
+
+  container.innerHTML = `
+    <div class="card">
+      <h2>Yeni not</h2>
+      ${categories.length === 0 ? `
+        <div class="empty">Önce ⚙ Ayarlar > Not'tan bir kategori ekle.</div>
+      ` : `
+        <label>Kategori</label>
+        <select id="n_cat">${categories.map(c => `<option value="${c.id}">${escape(c.name)}</option>`).join("")}</select>
+        <label>Başlık</label><input id="n_title" placeholder="Kısa başlık" />
+        <label>İçerik</label><textarea id="n_body" rows="5" placeholder="Öğrendiğin bilgiyi yaz..."></textarea>
+        <div style="height:12px;"></div>
+        <button class="primary" id="n_create">Kaydet</button>
+      `}
+    </div>
+    <div class="card">
+      <h2>Notlar</h2>
+      <label>Kategori filtresi</label>
+      <select id="n_filter">
+        <option value="">Tümü</option>
+        ${categories.map(c => `<option value="${c.id}" ${String(c.id) === String(filterId) ? "selected" : ""}>${escape(c.name)}</option>`).join("")}
+      </select>
+      <div style="height:12px;"></div>
+      ${filteredNotes.length === 0 ? `<div class="empty">${filterId ? "Bu kategoride not yok." : "Henüz not yok. Yukarıdaki formla ilk notu ekleyebilirsin."}</div>` :
+        filteredNotes.map(n => {
+          const cat = categories.find(c => c.id === n.category_id);
+          const dateStr = (n.created_at || "").slice(0, 10);
+          return `<div class="list-item" style="flex-direction:column; align-items:stretch; gap:6px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+              <div>
+                <div style="font-weight:600;">${escape(n.title)}</div>
+                <div class="meta">${escape(cat?.name ?? "?")} · ${dateStr}</div>
+              </div>
+              <div class="row">
+                <button class="secondary" data-edit="${n.id}">Düzenle</button>
+                <button class="danger" data-del="${n.id}">Sil</button>
+              </div>
+            </div>
+            ${n.body ? `<div style="white-space:pre-wrap; color:var(--text); font-size:14px;">${escape(n.body)}</div>` : ""}
+          </div>`;
+        }).join("")}
+    </div>
+  `;
+
+  document.getElementById("n_filter").onchange = (e) => {
+    state.notlarCategoryFilter = e.target.value;
+    renderNotlarTab(container);
+  };
+
+  const createBtn = document.getElementById("n_create");
+  if (createBtn) {
+    createBtn.onclick = async () => {
+      const payload = {
+        category_id: Number(document.getElementById("n_cat").value),
+        title: document.getElementById("n_title").value.trim(),
+        body: document.getElementById("n_body").value.trim(),
+      };
+      if (!payload.title) return toast("Başlık zorunlu", "error");
+      try {
+        await apiCall("/api/notes", { method: "POST", body: JSON.stringify(payload) });
+        toast("Not kaydedildi");
+        renderNotlarTab(container);
+      } catch {}
+    };
+  }
+
+  container.querySelectorAll("[data-edit]").forEach(btn => {
+    btn.onclick = () => {
+      const id = Number(btn.dataset.edit);
+      const n = allNotes.find(x => x.id === id);
+      if (!n) return;
+      openModal({
+        title: "Notu düzenle",
+        body: `
+          <label>Kategori</label>
+          <select id="en_cat">${categories.map(c => `<option value="${c.id}" ${c.id === n.category_id ? "selected" : ""}>${escape(c.name)}</option>`).join("")}</select>
+          <label>Başlık</label><input id="en_title" value="${escape(n.title)}" />
+          <label>İçerik</label><textarea id="en_body" rows="6">${escape(n.body ?? "")}</textarea>
+        `,
+        onSave: async () => {
+          const payload = {
+            category_id: Number(document.getElementById("en_cat").value),
+            title: document.getElementById("en_title").value.trim(),
+            body: document.getElementById("en_body").value.trim(),
+          };
+          if (!payload.title) {
+            toast("Başlık zorunlu", "error");
+            return false;
+          }
+          try {
+            await apiCall(`/api/notes/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+            toast("Güncellendi");
+            renderNotlarTab(container);
+            return true;
+          } catch {
+            return false;
+          }
+        },
+      });
+    };
+  });
+
+  container.querySelectorAll("[data-del]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Silinsin mi?")) return;
+      await apiCall(`/api/notes/${btn.dataset.del}`, { method: "DELETE" });
+      renderNotlarTab(container);
+    };
+  });
+}
+
 async function renderPano(container) {
   if (!state.activeSeason) {
     container.innerHTML = `
@@ -1292,8 +1416,8 @@ function renderSettings() {
     </header>
     <main>
       <div class="tabs-pill">
-        ${["seasons","types","supplies","medicines","password"].map(k =>
-          `<button class="${state.settingsTab===k?"active":""}" data-stab="${k}">${({seasons:"Sezon",types:"Tür",supplies:"Sarf",medicines:"İlaç",password:"Parola"})[k]}</button>`
+        ${["seasons","types","supplies","medicines","notes","password"].map(k =>
+          `<button class="${state.settingsTab===k?"active":""}" data-stab="${k}">${({seasons:"Sezon",types:"Tür",supplies:"Sarf",medicines:"İlaç",notes:"Not",password:"Parola"})[k]}</button>`
         ).join("")}
       </div>
       <div id="settingsBody"></div>
@@ -1312,7 +1436,18 @@ function renderSettings() {
   else if (state.settingsTab === "types") renderTypesSettings(body);
   else if (state.settingsTab === "supplies") renderSuppliesSettings(body);
   else if (state.settingsTab === "medicines") renderMedicinesSettings(body);
+  else if (state.settingsTab === "notes") renderNotesCategoriesSettings(body);
   else if (state.settingsTab === "password") renderPasswordSettings(body);
+}
+
+async function renderNotesCategoriesSettings(body) {
+  body.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
+  await renderMasterCRUD(body, {
+    title: "kategori",
+    endpoint: "/api/master/note-categories",
+    fields: [{ key: "name", label: "Ad", type: "text" }],
+    display: (r) => r.name,
+  });
 }
 
 async function renderSeasonsSettings(body) {
