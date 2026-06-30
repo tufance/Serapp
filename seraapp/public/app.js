@@ -1087,6 +1087,12 @@ async function renderPano(container) {
       <h1 style="margin:8px 0 0; font-size:22px; letter-spacing:0.5px;">SerApp</h1>
       <p style="margin:4px 0 0; color:var(--muted); font-size:13px;">Sera takip ve mutabakat</p>
     </div>
+
+    <div class="card">
+      <h2>Piyasa fiyatları (TL/kg)</h2>
+      ${allDates.length === 0 ? `<div class="empty">Henüz piyasa fiyatı kaydı yok.</div>` : `<div class="chart-wrap"><canvas id="chart_prices"></canvas></div>`}
+    </div>
+
     <div class="card">
       <h2>${escape(state.activeSeason.name)}</h2>
       <div class="list-item"><div>Brüt ciro</div><div class="meta" style="font-size:16px;color:var(--text);">₺${summary.total_revenue.toFixed(2)}</div></div>
@@ -1099,11 +1105,6 @@ async function renderPano(container) {
     <div class="card">
       <h2>Aylık tüketim (TL)</h2>
       ${monthLabels.length === 0 ? `<div class="empty">Henüz tüketim kaydı yok.</div>` : `<div class="chart-wrap"><canvas id="chart_monthly"></canvas></div>`}
-    </div>
-
-    <div class="card">
-      <h2>Piyasa fiyatları (TL/kg)</h2>
-      ${allDates.length === 0 ? `<div class="empty">Henüz piyasa fiyatı kaydı yok.</div>` : `<div class="chart-wrap"><canvas id="chart_prices"></canvas></div>`}
     </div>
 
     <div class="card">
