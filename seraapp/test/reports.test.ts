@@ -162,10 +162,30 @@ describe("GET /api/reports/season-summary", () => {
     const j = await res.json() as any;
     expect(j.total_revenue).toBe(2500);
     expect(j.total_cost_recorded).toBe(940);
-    expect(j.net_estimated).toBe(1260); // 2500 - 940 cost - 300 payout
+    expect(j.medicine_cost).toBe(0);
+    expect(j.net_estimated).toBe(1260); // 2500 - 940 cost - 0 medicine - 300 payout
     expect(j.partner_share).toBe(625); // 2500 * 0.25
     expect(j.partner_paid).toBe(300);
     expect(j.partner_balance).toBe(325); // 625 - 300
+  });
+
+  it("counts medicine purchases as expense in net", async () => {
+    const med = await (await SELF.fetch("https://example.com/api/master/medicines", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "Ridomil", unit: "g" }),
+    })).json() as any;
+    await SELF.fetch("https://example.com/api/medicine-purchases", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({
+        season_id: seasonId, purchase_date: "2025-09-15",
+        medicine_id: med.id, quantity: 500, unit: "g",
+        unit_cost: 0.4, total_cost: 200,
+      }),
+    });
+    const res = await SELF.fetch(`https://example.com/api/reports/season-summary?season_id=${seasonId}`, { headers: { cookie } });
+    const j = await res.json() as any;
+    expect(j.medicine_cost).toBe(200);
+    expect(j.net_estimated).toBe(-200); // 0 revenue - 0 sales cost - 200 medicine - 0 payout
   });
 });
 

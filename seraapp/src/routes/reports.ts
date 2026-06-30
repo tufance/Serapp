@@ -53,19 +53,26 @@ reportsRouter.get("/reports/season-summary", async (c) => {
     "SELECT COALESCE(SUM(amount),0) AS paid FROM partner_payouts WHERE season_id=?",
     seasonId,
   );
+  const medicines = await one<{ medicine_cost: number }>(
+    c.env.DB,
+    "SELECT COALESCE(SUM(total_cost),0) AS medicine_cost FROM medicine_purchases WHERE season_id=?",
+    seasonId,
+  );
 
   const total_revenue = sales?.total_revenue ?? 0;
   const total_cost_recorded = sales?.total_cost ?? 0;
+  const medicine_cost = medicines?.medicine_cost ?? 0;
   const partner_share = +(total_revenue * (season.partner_share_pct / 100)).toFixed(2);
   const partner_paid = paid?.paid ?? 0;
   const partner_balance = +(partner_share - partner_paid).toFixed(2);
-  // Net treats partner payouts as an expense in addition to recorded
-  // sales costs. Can go negative when there's no revenue yet.
-  const net_estimated = +(total_revenue - total_cost_recorded - partner_paid).toFixed(2);
+  // Net treats sales costs, medicine purchase costs and partner payouts
+  // as expenses. Can go negative when there's no revenue yet.
+  const net_estimated = +(total_revenue - total_cost_recorded - medicine_cost - partner_paid).toFixed(2);
 
   return c.json({
     total_revenue,
     total_cost_recorded,
+    medicine_cost,
     net_estimated,
     partner_share_pct: season.partner_share_pct,
     partner_share,
