@@ -197,12 +197,10 @@ function renderAlimTab(container) {
     { key: "ilac", label: "İlaç" },
   ];
   container.innerHTML = `
-    <div class="card">
-      <div class="row" style="gap:8px; flex-wrap:wrap;">
-        ${SUBS.map(s =>
-          `<button class="${state.alimSubTab===s.key?"primary":"secondary"}" data-sub="${s.key}">${s.label}</button>`
-        ).join("")}
-      </div>
+    <div class="tabs-pill">
+      ${SUBS.map(s =>
+        `<button class="${state.alimSubTab===s.key?"active":""}" data-sub="${s.key}">${s.label}</button>`
+      ).join("")}
     </div>
     <div id="alimBody"></div>
   `;
@@ -503,12 +501,10 @@ async function renderHareketTab(container) {
     { key: "tuketim", label: "Tüketim" },
   ];
   container.innerHTML = `
-    <div class="card">
-      <div class="row" style="gap:8px; flex-wrap:wrap;">
-        ${SUBS.map(s =>
-          `<button class="${state.hareketSubTab===s.key?"primary":"secondary"}" data-sub="${s.key}">${s.label}</button>`
-        ).join("")}
-      </div>
+    <div class="tabs-pill">
+      ${SUBS.map(s =>
+        `<button class="${state.hareketSubTab===s.key?"active":""}" data-sub="${s.key}">${s.label}</button>`
+      ).join("")}
     </div>
     <div id="hareketBody"></div>
   `;
@@ -646,12 +642,10 @@ function renderSatisTab(container) {
     { key: "piyasa", label: "Piyasa fiyatları" },
   ];
   container.innerHTML = `
-    <div class="card">
-      <div class="row" style="gap:8px; flex-wrap:wrap;">
-        ${SUBS.map(s =>
-          `<button class="${state.satisSubTab===s.key?"primary":"secondary"}" data-sub="${s.key}">${s.label}</button>`
-        ).join("")}
-      </div>
+    <div class="tabs-pill">
+      ${SUBS.map(s =>
+        `<button class="${state.satisSubTab===s.key?"active":""}" data-sub="${s.key}">${s.label}</button>`
+      ).join("")}
     </div>
     <div id="satisBody"></div>
   `;
