@@ -1,15 +1,7 @@
 import type { Context, Next } from "hono";
 import { getSession } from "./auth";
 import type { AppContext } from "./types";
-
-function parseCookie(header: string | undefined, name: string): string | null {
-  if (!header) return null;
-  for (const part of header.split(";")) {
-    const [k, v] = part.trim().split("=");
-    if (k === name) return v;
-  }
-  return null;
-}
+import { parseCookie } from "./cookies";
 
 export async function requireAuth(c: Context<AppContext>, next: Next) {
   const token = parseCookie(c.req.header("cookie"), "sera_session");
