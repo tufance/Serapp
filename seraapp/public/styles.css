@@ -61,9 +61,29 @@ button.secondary { background: var(--panel-2); color: var(--text); border: 1px s
 button.danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); border-radius: 12px; padding: 12px 16px; }
 
 input, select, textarea {
-  width: 100%; background: var(--panel-2); border: 1px solid var(--line);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  background: var(--panel-2); border: 1px solid var(--line);
   color: var(--text); border-radius: 12px; padding: 14px 14px;
   font-size: 16px; min-height: 48px;
+  font-family: inherit;
+}
+/* iOS Safari adds a large intrinsic min-width to native date/time inputs,
+   which pushes them past the parent on narrow screens. Reset the native
+   appearance so width:100% wins, and add a small caret hint. */
+input[type="date"],
+input[type="month"],
+input[type="time"],
+input[type="datetime-local"] {
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-min-logical-width: 0;
+  text-align: left;
+}
+input[type="date"]::-webkit-date-and-time-value,
+input[type="month"]::-webkit-date-and-time-value {
+  text-align: left;
 }
 label { display: block; color: var(--muted); font-size: 13px; margin: 12px 0 6px; }
 
