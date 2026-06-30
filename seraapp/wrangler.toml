@@ -1,0 +1,17 @@
+name = "seraapp"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "seraapp"
+database_id = "PLACEHOLDER_FILL_AFTER_CREATE"
+migrations_dir = "migrations"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "PLACEHOLDER_FILL_AFTER_CREATE"
