@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { AppContext } from "./types";
 import { setupRouter } from "./routes/setup";
 import { authRouter } from "./routes/auth";
+import { seasonsRouter } from "./routes/seasons";
 import { requireAuth } from "./middleware";
 
 const app = new Hono<AppContext>();
@@ -11,6 +12,7 @@ app.route("/api", setupRouter);
 app.use("/api/auth/logout", requireAuth);
 app.use("/api/auth/change-password", requireAuth);
 app.route("/api", authRouter);
+app.route("/api", seasonsRouter);
 
 app.use("/api/me", requireAuth);
 app.get("/api/me", (c) => {
