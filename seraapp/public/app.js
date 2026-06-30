@@ -157,7 +157,10 @@ function renderHome() {
           <div class="label" id="seasonName" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${state.activeSeason ? escape(state.activeSeason.name) : "Sezon yok"}</div>
         </div>
       </div>
-      <button class="settings" id="openSettings" aria-label="Ayarlar">⚙</button>
+      <div class="row" style="gap:4px;">
+        <button class="settings" id="themeToggle" aria-label="Tema değiştir" title="Tema değiştir">◐</button>
+        <button class="settings" id="openSettings" aria-label="Ayarlar">⚙</button>
+      </div>
     </header>
     <main id="content"></main>
     <nav class="bottom">
@@ -168,6 +171,7 @@ function renderHome() {
     b.onclick = () => { state.activeTab = b.dataset.tab; renderHome(); };
   });
   document.getElementById("openSettings").onclick = () => { state.settingsOpen = true; renderSettings(); };
+  document.getElementById("themeToggle").onclick = toggleTheme;
   renderTabContent();
 }
 
@@ -910,16 +914,17 @@ async function renderPiyasaFiyatlari(body) {
       tension: 0.2,
       borderWidth: 2,
     }));
+    const cc = chartColors();
     new Chart(document.getElementById("mp_chart"), {
       type: "line",
       data: { datasets },
       options: {
         responsive: true, maintainAspectRatio: false,
         parsing: { xAxisKey: "x", yAxisKey: "y" },
-        plugins: { legend: { labels: { color: "#e6efe7" } } },
+        plugins: { legend: { labels: { color: cc.text } } },
         scales: {
-          x: { type: "category", labels: allDates, ticks: { color: "#8aa394" }, grid: { color: "rgba(42,59,51,0.4)" } },
-          y: { ticks: { color: "#8aa394" }, grid: { color: "rgba(42,59,51,0.4)" }, beginAtZero: true },
+          x: { type: "category", labels: allDates, ticks: { color: cc.muted }, grid: { color: cc.line } },
+          y: { ticks: { color: cc.muted }, grid: { color: cc.line }, beginAtZero: true },
         },
       },
     });
@@ -1252,6 +1257,7 @@ async function renderPano(container) {
   `;
 
   // Charts
+  const cc = chartColors();
   if (monthLabels.length > 0 && typeof Chart !== "undefined") {
     new Chart(document.getElementById("chart_monthly"), {
       type: "bar",
@@ -1269,8 +1275,8 @@ async function renderPano(container) {
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { ticks: { color: "#8aa394" }, grid: { color: "rgba(42,59,51,0.4)" } },
-          y: { ticks: { color: "#8aa394" }, grid: { color: "rgba(42,59,51,0.4)" }, beginAtZero: true },
+          x: { ticks: { color: cc.muted }, grid: { color: cc.line } },
+          y: { ticks: { color: cc.muted }, grid: { color: cc.line }, beginAtZero: true },
         },
       },
     });
@@ -1292,10 +1298,10 @@ async function renderPano(container) {
       options: {
         responsive: true, maintainAspectRatio: false,
         parsing: { xAxisKey: "x", yAxisKey: "y" },
-        plugins: { legend: { labels: { color: "#e6efe7" } } },
+        plugins: { legend: { labels: { color: cc.text } } },
         scales: {
-          x: { type: "category", labels: allDates, ticks: { color: "#8aa394" }, grid: { color: "rgba(42,59,51,0.4)" } },
-          y: { ticks: { color: "#8aa394" }, grid: { color: "rgba(42,59,51,0.4)" }, beginAtZero: true },
+          x: { type: "category", labels: allDates, ticks: { color: cc.muted }, grid: { color: cc.line } },
+          y: { ticks: { color: cc.muted }, grid: { color: cc.line }, beginAtZero: true },
         },
       },
     });
@@ -1399,7 +1405,10 @@ function renderSettings() {
     <header class="season-bar">
       <button class="settings" id="back" aria-label="Geri">←</button>
       <div class="value">Ayarlar</div>
-      <button class="settings" id="logout" aria-label="Çıkış">⎋</button>
+      <div class="row" style="gap:4px;">
+        <button class="settings" id="themeToggle" aria-label="Tema değiştir" title="Tema değiştir">◐</button>
+        <button class="settings" id="logout" aria-label="Çıkış">⎋</button>
+      </div>
     </header>
     <main>
       <div class="tabs-pill">
@@ -1411,6 +1420,7 @@ function renderSettings() {
     </main>
   `;
   document.getElementById("back").onclick = () => { state.settingsOpen = false; renderHome(); };
+  document.getElementById("themeToggle").onclick = toggleTheme;
   document.getElementById("logout").onclick = async () => {
     await apiCall("/api/auth/logout", { method: "POST" }).catch(()=>{});
     state.authed = false; state.page = "login"; render();
@@ -1733,4 +1743,31 @@ async function bootstrap() {
   render();
 }
 
+loadTheme();
 bootstrap();
+
+function loadTheme() {
+  const t = localStorage.getItem("serapp_theme");
+  if (t === "light" || t === "dark") {
+    document.documentElement.setAttribute("data-theme", t);
+  }
+}
+function toggleTheme() {
+  const current = document.documentElement.getAttribute("data-theme")
+    ?? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+  const next = current === "dark" ? "light" : "dark";
+  localStorage.setItem("serapp_theme", next);
+  document.documentElement.setAttribute("data-theme", next);
+  // Re-render current view so charts pick up the new colors
+  if (state.page === "home") {
+    if (state.settingsOpen) renderSettings(); else renderHome();
+  }
+}
+function chartColors() {
+  const cs = getComputedStyle(document.documentElement);
+  return {
+    text:  cs.getPropertyValue("--text").trim()  || "#e6efe7",
+    muted: cs.getPropertyValue("--muted").trim() || "#8aa394",
+    line:  cs.getPropertyValue("--line").trim()  || "#2a3b33",
+  };
+}
