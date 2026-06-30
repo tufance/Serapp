@@ -166,8 +166,75 @@ function renderSettings() {
   document.querySelectorAll("[data-stab]").forEach(b => {
     b.onclick = () => { state.settingsTab = b.dataset.stab; renderSettings(); };
   });
-  document.getElementById("settingsBody").innerHTML =
-    `<div class="card"><div class="empty">${escape(state.settingsTab)} ekranı bir sonraki task'ta gelecek.</div></div>`;
+  const body = document.getElementById("settingsBody");
+  if (state.settingsTab === "seasons") renderSeasonsSettings(body);
+  else body.innerHTML = `<div class="card"><div class="empty">${escape(state.settingsTab)} ekranı sonraki task'ta.</div></div>`;
+}
+
+async function renderSeasonsSettings(body) {
+  body.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
+  const seasons = await apiCall("/api/seasons");
+  const today = new Date().toISOString().slice(0,10);
+  body.innerHTML = `
+    <div class="card">
+      <h2>Yeni sezon</h2>
+      <label>Ad</label><input id="s_name" placeholder="2025–2026 sezonu" />
+      <label>Başlangıç</label><input id="s_start" type="date" value="${today}" />
+      <label>Bitiş</label><input id="s_end" type="date" value="${today}" />
+      <label>Ortak payı (%)</label><input id="s_pct" type="number" inputmode="decimal" value="25" />
+      <div style="height:12px;"></div>
+      <button class="primary" id="s_create">Kaydet</button>
+    </div>
+    <div class="card">
+      <h2>Sezonlar</h2>
+      ${seasons.length === 0 ? `<div class="empty">Henüz sezon yok.</div>` :
+        seasons.map(s => `
+          <div class="list-item">
+            <div>
+              <div>${escape(s.name)} ${s.is_active ? "🟢" : ""}</div>
+              <div class="meta">${s.start_date} → ${s.end_date} · ortak %${s.partner_share_pct}</div>
+            </div>
+            <div class="row">
+              ${s.is_active ? "" : `<button class="secondary" data-act="${s.id}">Aktif et</button>`}
+              <button class="danger" data-del="${s.id}">Sil</button>
+            </div>
+          </div>
+        `).join("")
+      }
+    </div>
+  `;
+  document.getElementById("s_create").onclick = async () => {
+    const payload = {
+      name: document.getElementById("s_name").value.trim(),
+      start_date: document.getElementById("s_start").value,
+      end_date: document.getElementById("s_end").value,
+      partner_share_pct: Number(document.getElementById("s_pct").value),
+    };
+    if (!payload.name) return toast("Ad zorunlu", "error");
+    try {
+      await apiCall("/api/seasons", { method: "POST", body: JSON.stringify(payload) });
+      toast("Sezon eklendi");
+      renderSeasonsSettings(body);
+    } catch {}
+  };
+  body.querySelectorAll("[data-act]").forEach(btn => {
+    btn.onclick = async () => {
+      await apiCall(`/api/seasons/${btn.dataset.act}/activate`, { method: "POST" });
+      const seasons = await apiCall("/api/seasons");
+      state.activeSeason = seasons.find(s => s.is_active) ?? null;
+      toast("Aktif edildi");
+      renderSeasonsSettings(body);
+    };
+  });
+  body.querySelectorAll("[data-del]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Silinsin mi?")) return;
+      await apiCall(`/api/seasons/${btn.dataset.del}`, { method: "DELETE" });
+      const seasons = await apiCall("/api/seasons");
+      state.activeSeason = seasons.find(s => s.is_active) ?? null;
+      renderSeasonsSettings(body);
+    };
+  });
 }
 
 function escape(s) {
