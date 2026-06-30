@@ -16,6 +16,8 @@ const TABS = [
 ];
 
 state.activeTab = state.activeTab || "pano";
+state.alimSubTab = state.alimSubTab || "fidan";
+state.hareketSubTab = state.hareketSubTab || "ilac";
 state.settingsOpen = state.settingsOpen || false;
 state.settingsTab = state.settingsTab || "seasons";
 
@@ -136,9 +138,46 @@ function renderTabContent() {
     c.innerHTML = `<div class="card"><div class="empty">Önce ayarlardan bir sezon oluştur ve aktif et.</div></div>`;
     return;
   }
-  if (state.activeTab === "pano") c.innerHTML = `<div class="card"><h2>Pano</h2><div class="empty">Sonraki fazlarda dolacak.</div></div>`;
-  else c.innerHTML = `<div class="card"><h2>${escape(TABS.find(t=>t.key===state.activeTab).label)}</h2><div class="empty">Bu modül sonraki fazlarda gelecek.</div></div>`;
+  if (state.activeTab === "pano") {
+    c.innerHTML = `<div class="card"><h2>Pano</h2><div class="empty">Sonraki fazlarda dolacak.</div></div>`;
+  } else if (state.activeTab === "alim") {
+    renderAlimTab(c);
+  } else if (state.activeTab === "hareket") {
+    renderHareketTab(c);
+  } else {
+    c.innerHTML = `<div class="card"><h2>${escape(TABS.find(t=>t.key===state.activeTab).label)}</h2><div class="empty">Bu modül sonraki fazlarda gelecek.</div></div>`;
+  }
 }
+
+function renderAlimTab(container) {
+  const SUBS = [
+    { key: "fidan", label: "Fidan" },
+    { key: "sarf", label: "Sarf" },
+    { key: "ilac", label: "İlaç" },
+  ];
+  container.innerHTML = `
+    <div class="card">
+      <div class="row" style="gap:8px; flex-wrap:wrap;">
+        ${SUBS.map(s =>
+          `<button class="${state.alimSubTab===s.key?"primary":"secondary"}" data-sub="${s.key}">${s.label}</button>`
+        ).join("")}
+      </div>
+    </div>
+    <div id="alimBody"></div>
+  `;
+  container.querySelectorAll("[data-sub]").forEach(b => {
+    b.onclick = () => { state.alimSubTab = b.dataset.sub; renderTabContent(); };
+  });
+  const body = document.getElementById("alimBody");
+  if (state.alimSubTab === "fidan") renderFidanAlim(body);
+  else if (state.alimSubTab === "sarf") renderSarfAlim(body);
+  else if (state.alimSubTab === "ilac") renderIlacAlim(body);
+}
+
+async function renderFidanAlim(body) { body.innerHTML = `<div class="card"><div class="empty">Fidan UI (Task 13)</div></div>`; }
+async function renderSarfAlim(body) { body.innerHTML = `<div class="card"><div class="empty">Sarf UI (Task 14)</div></div>`; }
+async function renderIlacAlim(body) { body.innerHTML = `<div class="card"><div class="empty">İlaç UI (Task 15)</div></div>`; }
+async function renderHareketTab(container) { container.innerHTML = `<div class="card"><div class="empty">İlaç uygulamaları UI (Task 16)</div></div>`; }
 
 function renderSettings() {
   app.innerHTML = `
