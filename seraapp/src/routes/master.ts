@@ -144,3 +144,57 @@ mountTable({
     { name: "unit", required: true, type: "string" },
   ],
 });
+
+mountTable({
+  path: "diseases",
+  table: "diseases",
+  fields: [{ name: "name", required: true, type: "string" }],
+});
+
+mountTable({
+  path: "medicines",
+  table: "medicines",
+  fields: [
+    { name: "name", required: true, type: "string" },
+    { name: "active_ingredient", type: "string" },
+    { name: "unit", required: true, type: "string" },
+  ],
+});
+
+// map'ı manuel ekle (composite key, generic helper'a uymuyor)
+masterRouter.get("/master/disease-medicine-map", async (c) => {
+  const diseaseId = c.req.query("disease_id");
+  const medicineId = c.req.query("medicine_id");
+  if (diseaseId) {
+    return c.json(await all(c.env.DB, "SELECT * FROM disease_medicine_map WHERE disease_id=?", Number(diseaseId)));
+  }
+  if (medicineId) {
+    return c.json(await all(c.env.DB, "SELECT * FROM disease_medicine_map WHERE medicine_id=?", Number(medicineId)));
+  }
+  return c.json(await all(c.env.DB, "SELECT * FROM disease_medicine_map"));
+});
+
+masterRouter.post("/master/disease-medicine-map", async (c) => {
+  const body = await c.req.json().catch(() => null) as { disease_id?: number; medicine_id?: number } | null;
+  if (!body || typeof body.disease_id !== "number" || typeof body.medicine_id !== "number") {
+    return c.json({ error: "disease_id and medicine_id required" }, 400);
+  }
+  const d = await one(c.env.DB, "SELECT id FROM diseases WHERE id=?", body.disease_id);
+  const m = await one(c.env.DB, "SELECT id FROM medicines WHERE id=?", body.medicine_id);
+  if (!d || !m) return c.json({ error: "disease or medicine not found" }, 400);
+  try {
+    await run(c.env.DB, "INSERT INTO disease_medicine_map (disease_id, medicine_id) VALUES (?, ?)", body.disease_id, body.medicine_id);
+  } catch (e: any) {
+    if (String(e).includes("UNIQUE") || String(e).includes("PRIMARY")) return c.json({ error: "duplicate" }, 409);
+    throw e;
+  }
+  return c.json({ disease_id: body.disease_id, medicine_id: body.medicine_id }, 201);
+});
+
+masterRouter.delete("/master/disease-medicine-map", async (c) => {
+  const diseaseId = Number(c.req.query("disease_id"));
+  const medicineId = Number(c.req.query("medicine_id"));
+  if (!diseaseId || !medicineId) return c.json({ error: "disease_id and medicine_id required" }, 400);
+  await run(c.env.DB, "DELETE FROM disease_medicine_map WHERE disease_id=? AND medicine_id=?", diseaseId, medicineId);
+  return new Response(null, { status: 204 });
+});

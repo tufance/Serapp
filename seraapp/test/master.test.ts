@@ -138,3 +138,44 @@ describe("supply_categories & utility_types", () => {
     expect(r.status).toBe(201);
   });
 });
+
+describe("diseases, medicines, mapping", () => {
+  let cookie: string;
+  beforeEach(async () => {
+    await resetDb(); await clearKV(); await migrate();
+    cookie = await authedCookie();
+  });
+
+  it("creates disease and medicine", async () => {
+    const d = await SELF.fetch("https://example.com/api/master/diseases", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "mildiyö" }),
+    });
+    expect(d.status).toBe(201);
+    const m = await SELF.fetch("https://example.com/api/master/medicines", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "Ridomil", active_ingredient: "metalaksil", unit: "g" }),
+    });
+    expect(m.status).toBe(201);
+  });
+
+  it("maps disease to medicine and lists by disease", async () => {
+    const d = await (await SELF.fetch("https://example.com/api/master/diseases", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "mildiyö" }),
+    })).json() as any;
+    const m = await (await SELF.fetch("https://example.com/api/master/medicines", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "Ridomil", unit: "g" }),
+    })).json() as any;
+    const map = await SELF.fetch("https://example.com/api/master/disease-medicine-map", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ disease_id: d.id, medicine_id: m.id }),
+    });
+    expect(map.status).toBe(201);
+    const list = await (await SELF.fetch(`https://example.com/api/master/disease-medicine-map?disease_id=${d.id}`, {
+      headers: { cookie },
+    })).json() as any[];
+    expect(list).toHaveLength(1);
+  });
+});
