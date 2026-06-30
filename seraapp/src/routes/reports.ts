@@ -56,10 +56,12 @@ reportsRouter.get("/reports/season-summary", async (c) => {
 
   const total_revenue = sales?.total_revenue ?? 0;
   const total_cost_recorded = sales?.total_cost ?? 0;
-  const net_estimated = total_revenue - total_cost_recorded;
   const partner_share = +(total_revenue * (season.partner_share_pct / 100)).toFixed(2);
   const partner_paid = paid?.paid ?? 0;
   const partner_balance = +(partner_share - partner_paid).toFixed(2);
+  // Net treats partner payouts as an expense in addition to recorded
+  // sales costs. Can go negative when there's no revenue yet.
+  const net_estimated = +(total_revenue - total_cost_recorded - partner_paid).toFixed(2);
 
   return c.json({
     total_revenue,
