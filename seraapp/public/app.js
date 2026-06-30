@@ -456,7 +456,104 @@ async function renderIlacAlim(body) {
     };
   });
 }
-async function renderHareketTab(container) { container.innerHTML = `<div class="card"><div class="empty">İlaç uygulamaları UI (Task 16)</div></div>`; }
+async function renderHareketTab(container) {
+  // Şimdilik tek alt-sekme; Faz 3'te "Tüketim" eklenecek
+  container.innerHTML = `<div id="hareketBody"></div>`;
+  const body = document.getElementById("hareketBody");
+  await renderIlacUygulama(body);
+}
+
+async function renderIlacUygulama(body) {
+  body.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
+  const seasonId = state.activeSeason.id;
+  const [meds, diseases, mapping, list, stock] = await Promise.all([
+    apiCall("/api/master/medicines"),
+    apiCall("/api/master/diseases"),
+    apiCall("/api/master/disease-medicine-map"),
+    apiCall(`/api/medicine-applications?season_id=${seasonId}`),
+    apiCall("/api/stock/medicines"),
+  ]);
+  const today = new Date().toISOString().slice(0,10);
+
+  body.innerHTML = `
+    <div class="card">
+      <h2>İlaç stok durumu</h2>
+      ${stock.length === 0 ? `<div class="empty">Stok hareketi yok.</div>` :
+        stock.map(s => `<div class="list-item">
+          <div>${escape(s.name)}</div>
+          <div class="meta">${s.balance} ${escape(s.unit)}</div>
+        </div>`).join("")}
+    </div>
+    <div class="card">
+      <h2>Yeni ilaç uygulaması</h2>
+      <label>Tarih</label><input id="ma_date" type="date" value="${today}" />
+      <label>Hastalık</label>
+      <select id="ma_disease">${diseases.map(d => `<option value="${d.id}">${escape(d.name)}</option>`).join("")}</select>
+      <label>İlaç</label>
+      <select id="ma_med"></select>
+      <label>Kullanılan miktar</label><input id="ma_qty" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Hedef/Notlar (ops.)</label><input id="ma_target" placeholder="kuzey blok" />
+      <div style="height:12px;"></div>
+      <button class="primary" id="ma_create">Kaydet</button>
+    </div>
+    <div class="card">
+      <h2>Bu sezonun uygulamaları</h2>
+      ${list.length === 0 ? `<div class="empty">Henüz uygulama yok.</div>` :
+        list.map(r => {
+          const m = meds.find(x => x.id === r.medicine_id);
+          const d = diseases.find(x => x.id === r.disease_id);
+          return `<div class="list-item">
+            <div>
+              <div>${escape(d?.name ?? "?")} → ${escape(m?.name ?? "?")}</div>
+              <div class="meta">${r.application_date} · ${r.quantity_used}${r.target ? ` · ${escape(r.target)}` : ""}</div>
+            </div>
+            <button class="danger" data-del="${r.id}">Sil</button>
+          </div>`;
+        }).join("")}
+    </div>
+  `;
+
+  function refreshMedOptions() {
+    const did = Number(document.getElementById("ma_disease").value);
+    const allowedIds = new Set(mapping.filter(x => x.disease_id === did).map(x => x.medicine_id));
+    const sel = document.getElementById("ma_med");
+    const matches = meds.filter(m => allowedIds.has(m.id));
+    sel.innerHTML = matches.length
+      ? matches.map(m => `<option value="${m.id}">${escape(m.name)}</option>`).join("")
+      : `<option value="">— Bu hastalık için ilaç eşlemesi yok —</option>`;
+  }
+  refreshMedOptions();
+  document.getElementById("ma_disease").onchange = refreshMedOptions;
+
+  document.getElementById("ma_create").onclick = async () => {
+    const medVal = document.getElementById("ma_med").value;
+    if (!medVal) return toast("Önce bu hastalığa ilaç eşle", "error");
+    const payload = {
+      season_id: seasonId,
+      application_date: document.getElementById("ma_date").value,
+      medicine_id: Number(medVal),
+      disease_id: Number(document.getElementById("ma_disease").value),
+      quantity_used: Number(document.getElementById("ma_qty").value),
+      target: document.getElementById("ma_target").value.trim() || undefined,
+    };
+    if (!payload.application_date || !(payload.quantity_used > 0)) {
+      return toast("Eksik veya geçersiz alan", "error");
+    }
+    try {
+      await apiCall("/api/medicine-applications", { method: "POST", body: JSON.stringify(payload) });
+      toast("Eklendi");
+      renderIlacUygulama(body);
+    } catch {}
+  };
+
+  body.querySelectorAll("[data-del]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Silinsin mi?")) return;
+      await apiCall(`/api/medicine-applications/${btn.dataset.del}`, { method: "DELETE" });
+      renderIlacUygulama(body);
+    };
+  });
+}
 
 function renderSettings() {
   app.innerHTML = `
