@@ -161,11 +161,11 @@ describe("GET /api/reports/season-summary", () => {
     const res = await SELF.fetch(`https://example.com/api/reports/season-summary?season_id=${seasonId}`, { headers: { cookie } });
     const j = await res.json() as any;
     expect(j.total_revenue).toBe(2500);
-    expect(j.total_cost_recorded).toBe(940);
     expect(j.medicine_cost).toBe(0);
     expect(j.seedling_cost).toBe(0);
     expect(j.supply_cost).toBe(0);
-    expect(j.net_estimated).toBe(1260); // 2500 - 940 cost - 0 medicine - 0 seedling - 0 supply - 300 payout
+    // Sales is pure revenue (no double-count of sales unit_cost)
+    expect(j.net_estimated).toBe(2200); // 2500 - 0 medicine - 0 seedling - 0 supply - 300 payout
     expect(j.partner_share).toBe(625); // 2500 * 0.25
     expect(j.partner_paid).toBe(300);
     expect(j.partner_balance).toBe(325); // 625 - 300

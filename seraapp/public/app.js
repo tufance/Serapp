@@ -710,8 +710,6 @@ async function renderSatislar(body) {
       <label>Miktar (kg)</label><input id="sale_qty" type="number" inputmode="decimal" min="0" step="0.01" />
       <label>Birim fiyat (TL/kg)</label><input id="sale_up" type="number" inputmode="decimal" min="0" step="0.01" />
       <label>Toplam ciro (TL)</label><input id="sale_tr" type="number" inputmode="decimal" min="0" step="0.01" />
-      <label>Birim maliyet (TL/kg, ops.)</label><input id="sale_uc" type="number" inputmode="decimal" min="0" step="0.01" />
-      <label>Toplam maliyet (TL, ops.)</label><input id="sale_tc" type="number" inputmode="decimal" min="0" step="0.01" />
       <label>Alıcı (ops.)</label><input id="sale_buyer" />
       <label>Notlar (ops.)</label><input id="sale_notes" />
       <div style="height:12px;"></div>
@@ -751,19 +749,12 @@ async function renderSatislar(body) {
   const qty = document.getElementById("sale_qty");
   const up = document.getElementById("sale_up");
   const tr = document.getElementById("sale_tr");
-  const uc = document.getElementById("sale_uc");
-  const tc = document.getElementById("sale_tc");
   function recalcRev() {
     const q = Number(qty.value), p = Number(up.value);
     if (q > 0 && p >= 0) tr.value = (q * p).toFixed(2);
   }
-  function recalcCost() {
-    const q = Number(qty.value), p = Number(uc.value);
-    if (q > 0 && p >= 0) tc.value = (q * p).toFixed(2);
-  }
-  qty.oninput = () => { recalcRev(); recalcCost(); };
+  qty.oninput = recalcRev;
   up.oninput = recalcRev;
-  uc.oninput = recalcCost;
 
   document.getElementById("sale_create").onclick = async () => {
     const varVal = document.getElementById("sale_var").value;
@@ -776,8 +767,6 @@ async function renderSatislar(body) {
       quantity: Number(qty.value),
       unit_price: Number(up.value),
       total_revenue: Number(tr.value),
-      unit_cost: uc.value ? Number(uc.value) : undefined,
-      total_cost: tc.value ? Number(tc.value) : undefined,
       buyer: document.getElementById("sale_buyer").value.trim() || undefined,
       notes: document.getElementById("sale_notes").value.trim() || undefined,
     };
@@ -811,8 +800,6 @@ async function renderSatislar(body) {
           <label>Miktar (kg)</label><input id="em_qty" type="number" inputmode="decimal" min="0" step="0.01" value="${r.quantity}" />
           <label>Birim fiyat (TL/kg)</label><input id="em_up" type="number" inputmode="decimal" min="0" step="0.01" value="${r.unit_price}" />
           <label>Toplam ciro (TL)</label><input id="em_tr" type="number" inputmode="decimal" min="0" step="0.01" value="${r.total_revenue}" />
-          <label>Birim maliyet (TL/kg, ops.)</label><input id="em_uc" type="number" inputmode="decimal" min="0" step="0.01" value="${r.unit_cost ?? ''}" />
-          <label>Toplam maliyet (TL, ops.)</label><input id="em_tc" type="number" inputmode="decimal" min="0" step="0.01" value="${r.total_cost ?? ''}" />
           <label>Alıcı (ops.)</label><input id="em_buyer" value="${escape(r.buyer ?? '')}" />
           <label>Notlar (ops.)</label><input id="em_notes" value="${escape(r.notes ?? '')}" />
         `,
@@ -825,10 +812,6 @@ async function renderSatislar(body) {
             buyer: document.getElementById("em_buyer").value.trim(),
             notes: document.getElementById("em_notes").value.trim(),
           };
-          const ucVal = document.getElementById("em_uc").value;
-          const tcVal = document.getElementById("em_tc").value;
-          if (ucVal !== "") payload.unit_cost = Number(ucVal);
-          if (tcVal !== "") payload.total_cost = Number(tcVal);
           if (!(payload.quantity > 0) || !(payload.unit_price >= 0)) {
             toast("Geçersiz miktar/fiyat", "error");
             return false;
@@ -1239,7 +1222,6 @@ async function renderPano(container) {
       <div class="list-item"><div>Fidan alımı</div><div class="meta" style="color:var(--danger);">− ₺${(summary.seedling_cost ?? 0).toFixed(2)}</div></div>
       <div class="list-item"><div>Sarf alımı</div><div class="meta" style="color:var(--danger);">− ₺${(summary.supply_cost ?? 0).toFixed(2)}</div></div>
       <div class="list-item"><div>İlaç alımı</div><div class="meta" style="color:var(--danger);">− ₺${(summary.medicine_cost ?? 0).toFixed(2)}</div></div>
-      <div class="list-item"><div>Satış maliyeti (girilen)</div><div class="meta" style="color:var(--danger);">− ₺${summary.total_cost_recorded.toFixed(2)}</div></div>
       <div class="list-item"><div>Ortağa ödenen</div><div class="meta" style="color:var(--danger);">− ₺${summary.partner_paid.toFixed(2)}</div></div>
       <div class="list-item"><div><strong>Net tahmini</strong></div><div class="meta" style="font-size:16px;font-weight:600;color:${netColor};">₺${summary.net_estimated.toFixed(2)}</div></div>
       <div class="list-item"><div>Ortak payı (%${summary.partner_share_pct})</div><div class="meta">₺${summary.partner_share.toFixed(2)}</div></div>
