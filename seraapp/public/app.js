@@ -1071,6 +1071,7 @@ async function renderPano(container) {
 
   const balanceLabel = summary.partner_balance > 0 ? "borç" : (summary.partner_balance < 0 ? "fazla" : "denk");
   const balanceColor = summary.partner_balance > 0 ? "var(--danger)" : (summary.partner_balance < 0 ? "var(--warn)" : "var(--accent)");
+  const netColor = summary.net_estimated > 0 ? "var(--accent)" : (summary.net_estimated < 0 ? "var(--danger)" : "var(--text)");
 
   const recent = [];
   for (const s of sales.slice(0, 5)) {
@@ -1119,9 +1120,10 @@ async function renderPano(container) {
     <div class="card">
       <h2>${escape(state.activeSeason.name)}</h2>
       <div class="list-item"><div>Brüt ciro</div><div class="meta" style="font-size:16px;color:var(--text);">₺${summary.total_revenue.toFixed(2)}</div></div>
-      <div class="list-item"><div>Net tahmini</div><div class="meta" style="font-size:16px;color:var(--accent);">₺${summary.net_estimated.toFixed(2)}</div></div>
+      <div class="list-item"><div>Maliyet (girilen)</div><div class="meta" style="color:var(--danger);">− ₺${summary.total_cost_recorded.toFixed(2)}</div></div>
+      <div class="list-item"><div>Ortağa ödenen</div><div class="meta" style="color:var(--danger);">− ₺${summary.partner_paid.toFixed(2)}</div></div>
+      <div class="list-item"><div><strong>Net tahmini</strong></div><div class="meta" style="font-size:16px;font-weight:600;color:${netColor};">₺${summary.net_estimated.toFixed(2)}</div></div>
       <div class="list-item"><div>Ortak payı (%${summary.partner_share_pct})</div><div class="meta">₺${summary.partner_share.toFixed(2)}</div></div>
-      <div class="list-item"><div>Ödenen</div><div class="meta">₺${summary.partner_paid.toFixed(2)}</div></div>
       <div class="list-item"><div><strong>Bakiye</strong></div><div style="color:${balanceColor};font-weight:600;">₺${Math.abs(summary.partner_balance).toFixed(2)} ${balanceLabel}</div></div>
     </div>
 
