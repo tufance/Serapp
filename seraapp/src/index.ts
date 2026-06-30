@@ -4,6 +4,7 @@ import { setupRouter } from "./routes/setup";
 import { authRouter } from "./routes/auth";
 import { seasonsRouter } from "./routes/seasons";
 import { masterRouter } from "./routes/master";
+import { seedlingsRouter } from "./routes/seedlings";
 import { requireAuth } from "./middleware";
 
 const app = new Hono<AppContext>();
@@ -15,6 +16,7 @@ app.use("/api/auth/change-password", requireAuth);
 app.route("/api", authRouter);
 app.route("/api", seasonsRouter);
 app.route("/api", masterRouter);
+app.route("/api", seedlingsRouter);
 
 app.use("/api/me", requireAuth);
 app.get("/api/me", (c) => {
