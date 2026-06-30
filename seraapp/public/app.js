@@ -907,16 +907,19 @@ async function renderPano(container) {
   }
   container.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
   const seasonId = state.activeSeason.id;
-  const [summary, sales, payouts] = await Promise.all([
+  const [summary, sales, payouts, monthly, prices, types, varieties] = await Promise.all([
     apiCall(`/api/reports/season-summary?season_id=${seasonId}`),
     apiCall(`/api/sales?season_id=${seasonId}`),
     apiCall(`/api/payouts?season_id=${seasonId}`),
+    apiCall(`/api/reports/monthly-consumption?season_id=${seasonId}`),
+    apiCall(`/api/market-prices`),
+    apiCall(`/api/master/crop-types`),
+    apiCall(`/api/master/crop-varieties`),
   ]);
 
   const balanceLabel = summary.partner_balance > 0 ? "borç" : (summary.partner_balance < 0 ? "fazla" : "denk");
   const balanceColor = summary.partner_balance > 0 ? "var(--danger)" : (summary.partner_balance < 0 ? "var(--warn)" : "var(--accent)");
 
-  // En son 5 hareketi birleştir
   const recent = [];
   for (const s of sales.slice(0, 5)) {
     recent.push({ date: s.sale_date, label: `Satış: ${s.quantity} kg ₺${s.total_revenue.toFixed(2)}` });
@@ -927,39 +930,104 @@ async function renderPano(container) {
   recent.sort((a, b) => b.date.localeCompare(a.date));
   const top5 = recent.slice(0, 5);
 
+  // Monthly chart data: month → total_cost
+  const monthlyTotals = {};
+  for (const r of monthly) {
+    monthlyTotals[r.period_month] = (monthlyTotals[r.period_month] || 0) + (r.total_cost || 0);
+  }
+  const monthLabels = Object.keys(monthlyTotals).sort();
+  const monthData = monthLabels.map(m => monthlyTotals[m]);
+
+  // Price series: group by `type · variety`, map date → market_price
+  const priceSeries = {};
+  for (const p of prices) {
+    const t = types.find(x => x.id === p.crop_type_id);
+    const v = varieties.find(x => x.id === p.crop_variety_id);
+    const key = `${t?.name ?? "?"} · ${v?.name ?? "?"}`;
+    (priceSeries[key] = priceSeries[key] || []).push({ x: p.snapshot_date, y: p.market_price });
+  }
+  // Sort each series by date asc
+  for (const key of Object.keys(priceSeries)) {
+    priceSeries[key].sort((a, b) => a.x.localeCompare(b.x));
+  }
+  const allDates = [...new Set(prices.map(p => p.snapshot_date))].sort();
+
   container.innerHTML = `
     <div class="card">
       <h2>${escape(state.activeSeason.name)}</h2>
-      <div class="list-item">
-        <div>Brüt ciro</div>
-        <div class="meta" style="font-size:16px;color:var(--text);">₺${summary.total_revenue.toFixed(2)}</div>
-      </div>
-      <div class="list-item">
-        <div>Net tahmini</div>
-        <div class="meta" style="font-size:16px;color:var(--accent);">₺${summary.net_estimated.toFixed(2)}</div>
-      </div>
-      <div class="list-item">
-        <div>Ortak payı (%${summary.partner_share_pct})</div>
-        <div class="meta">₺${summary.partner_share.toFixed(2)}</div>
-      </div>
-      <div class="list-item">
-        <div>Ödenen</div>
-        <div class="meta">₺${summary.partner_paid.toFixed(2)}</div>
-      </div>
-      <div class="list-item">
-        <div><strong>Bakiye</strong></div>
-        <div style="color:${balanceColor};font-weight:600;">₺${Math.abs(summary.partner_balance).toFixed(2)} ${balanceLabel}</div>
-      </div>
+      <div class="list-item"><div>Brüt ciro</div><div class="meta" style="font-size:16px;color:var(--text);">₺${summary.total_revenue.toFixed(2)}</div></div>
+      <div class="list-item"><div>Net tahmini</div><div class="meta" style="font-size:16px;color:var(--accent);">₺${summary.net_estimated.toFixed(2)}</div></div>
+      <div class="list-item"><div>Ortak payı (%${summary.partner_share_pct})</div><div class="meta">₺${summary.partner_share.toFixed(2)}</div></div>
+      <div class="list-item"><div>Ödenen</div><div class="meta">₺${summary.partner_paid.toFixed(2)}</div></div>
+      <div class="list-item"><div><strong>Bakiye</strong></div><div style="color:${balanceColor};font-weight:600;">₺${Math.abs(summary.partner_balance).toFixed(2)} ${balanceLabel}</div></div>
     </div>
+
+    <div class="card">
+      <h2>Aylık tüketim (TL)</h2>
+      ${monthLabels.length === 0 ? `<div class="empty">Henüz tüketim kaydı yok.</div>` : `<div class="chart-wrap"><canvas id="chart_monthly"></canvas></div>`}
+    </div>
+
+    <div class="card">
+      <h2>Piyasa fiyatları (TL/kg)</h2>
+      ${allDates.length === 0 ? `<div class="empty">Henüz piyasa fiyatı kaydı yok.</div>` : `<div class="chart-wrap"><canvas id="chart_prices"></canvas></div>`}
+    </div>
+
     <div class="card">
       <h2>Son hareketler</h2>
       ${top5.length === 0 ? `<div class="empty">Henüz hareket yok.</div>` :
-        top5.map(r => `<div class="list-item">
-          <div>${escape(r.label)}</div>
-          <div class="meta">${r.date}</div>
-        </div>`).join("")}
+        top5.map(r => `<div class="list-item"><div>${escape(r.label)}</div><div class="meta">${r.date}</div></div>`).join("")}
     </div>
   `;
+
+  // Charts
+  if (monthLabels.length > 0 && typeof Chart !== "undefined") {
+    new Chart(document.getElementById("chart_monthly"), {
+      type: "bar",
+      data: {
+        labels: monthLabels,
+        datasets: [{
+          label: "Tüketim (TL)",
+          data: monthData,
+          backgroundColor: "rgba(74, 210, 143, 0.5)",
+          borderColor: "rgba(74, 210, 143, 1)",
+          borderWidth: 1,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: "#8aa394" }, grid: { color: "rgba(42,59,51,0.4)" } },
+          y: { ticks: { color: "#8aa394" }, grid: { color: "rgba(42,59,51,0.4)" }, beginAtZero: true },
+        },
+      },
+    });
+  }
+
+  if (allDates.length > 0 && typeof Chart !== "undefined") {
+    const palette = ["#4ad28f","#ffb454","#ff5d6c","#7aa2f7","#bb9af7","#9ece6a","#f7768e","#e0af68"];
+    const datasets = Object.keys(priceSeries).map((key, i) => ({
+      label: key,
+      data: priceSeries[key],
+      borderColor: palette[i % palette.length],
+      backgroundColor: palette[i % palette.length],
+      tension: 0.2,
+      borderWidth: 2,
+    }));
+    new Chart(document.getElementById("chart_prices"), {
+      type: "line",
+      data: { datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        parsing: { xAxisKey: "x", yAxisKey: "y" },
+        plugins: { legend: { labels: { color: "#e6efe7" } } },
+        scales: {
+          x: { type: "category", labels: allDates, ticks: { color: "#8aa394" }, grid: { color: "rgba(42,59,51,0.4)" } },
+          y: { ticks: { color: "#8aa394" }, grid: { color: "rgba(42,59,51,0.4)" }, beginAtZero: true },
+        },
+      },
+    });
+  }
 }
 
 async function renderIlacUygulama(body) {
