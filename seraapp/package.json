@@ -9,7 +9,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "migrate:local": "wrangler d1 migrations apply seraapp --local",
-    "migrate:remote": "wrangler d1 migrations apply seraapp --remote"
+    "migrate:remote": "wrangler d1 migrations apply seraapp --remote",
+    "seed:local": "wrangler d1 execute seraapp --local --file=./seed/initial.sql",
+    "seed:remote": "wrangler d1 execute seraapp --remote --file=./seed/initial.sql"
   },
   "dependencies": {
     "hono": "^4.6.0"
