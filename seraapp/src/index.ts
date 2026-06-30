@@ -9,6 +9,7 @@ import { supplyPurchasesRouter } from "./routes/supply-purchases";
 import { medicinePurchasesRouter } from "./routes/medicine-purchases";
 import { medicineApplicationsRouter } from "./routes/medicine-applications";
 import { stockRouter } from "./routes/stock";
+import { consumptionRouter } from "./routes/consumption";
 import { requireAuth } from "./middleware";
 
 const app = new Hono<AppContext>();
@@ -25,6 +26,7 @@ app.route("/api", supplyPurchasesRouter);
 app.route("/api", medicinePurchasesRouter);
 app.route("/api", medicineApplicationsRouter);
 app.route("/api", stockRouter);
+app.route("/api", consumptionRouter);
 
 app.use("/api/me", requireAuth);
 app.get("/api/me", (c) => {
