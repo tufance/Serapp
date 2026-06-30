@@ -1236,8 +1236,10 @@ async function renderPano(container) {
     <div class="card">
       <h2>${escape(state.activeSeason.name)}</h2>
       <div class="list-item"><div>Brüt ciro</div><div class="meta" style="font-size:16px;color:var(--text);">₺${summary.total_revenue.toFixed(2)}</div></div>
-      <div class="list-item"><div>Maliyet (girilen)</div><div class="meta" style="color:var(--danger);">− ₺${summary.total_cost_recorded.toFixed(2)}</div></div>
-      <div class="list-item"><div>İlaç maliyeti</div><div class="meta" style="color:var(--danger);">− ₺${(summary.medicine_cost ?? 0).toFixed(2)}</div></div>
+      <div class="list-item"><div>Fidan alımı</div><div class="meta" style="color:var(--danger);">− ₺${(summary.seedling_cost ?? 0).toFixed(2)}</div></div>
+      <div class="list-item"><div>Sarf alımı</div><div class="meta" style="color:var(--danger);">− ₺${(summary.supply_cost ?? 0).toFixed(2)}</div></div>
+      <div class="list-item"><div>İlaç alımı</div><div class="meta" style="color:var(--danger);">− ₺${(summary.medicine_cost ?? 0).toFixed(2)}</div></div>
+      <div class="list-item"><div>Satış maliyeti (girilen)</div><div class="meta" style="color:var(--danger);">− ₺${summary.total_cost_recorded.toFixed(2)}</div></div>
       <div class="list-item"><div>Ortağa ödenen</div><div class="meta" style="color:var(--danger);">− ₺${summary.partner_paid.toFixed(2)}</div></div>
       <div class="list-item"><div><strong>Net tahmini</strong></div><div class="meta" style="font-size:16px;font-weight:600;color:${netColor};">₺${summary.net_estimated.toFixed(2)}</div></div>
       <div class="list-item"><div>Ortak payı (%${summary.partner_share_pct})</div><div class="meta">₺${summary.partner_share.toFixed(2)}</div></div>

@@ -58,20 +58,37 @@ reportsRouter.get("/reports/season-summary", async (c) => {
     "SELECT COALESCE(SUM(total_cost),0) AS medicine_cost FROM medicine_purchases WHERE season_id=?",
     seasonId,
   );
+  const seedlings = await one<{ seedling_cost: number }>(
+    c.env.DB,
+    "SELECT COALESCE(SUM(total_cost),0) AS seedling_cost FROM seedling_purchases WHERE season_id=?",
+    seasonId,
+  );
+  const supplies = await one<{ supply_cost: number }>(
+    c.env.DB,
+    "SELECT COALESCE(SUM(total_cost),0) AS supply_cost FROM supply_purchases WHERE season_id=?",
+    seasonId,
+  );
 
   const total_revenue = sales?.total_revenue ?? 0;
   const total_cost_recorded = sales?.total_cost ?? 0;
   const medicine_cost = medicines?.medicine_cost ?? 0;
+  const seedling_cost = seedlings?.seedling_cost ?? 0;
+  const supply_cost = supplies?.supply_cost ?? 0;
   const partner_share = +(total_revenue * (season.partner_share_pct / 100)).toFixed(2);
   const partner_paid = paid?.paid ?? 0;
   const partner_balance = +(partner_share - partner_paid).toFixed(2);
-  // Net treats sales costs, medicine purchase costs and partner payouts
-  // as expenses. Can go negative when there's no revenue yet.
-  const net_estimated = +(total_revenue - total_cost_recorded - medicine_cost - partner_paid).toFixed(2);
+  // Net counts all recorded expenses (sales-side costs, seedling/supply/
+  // medicine purchases, partner payouts). Can go negative when expenses
+  // exceed revenue.
+  const net_estimated = +(
+    total_revenue - total_cost_recorded - seedling_cost - supply_cost - medicine_cost - partner_paid
+  ).toFixed(2);
 
   return c.json({
     total_revenue,
     total_cost_recorded,
+    seedling_cost,
+    supply_cost,
     medicine_cost,
     net_estimated,
     partner_share_pct: season.partner_share_pct,
