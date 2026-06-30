@@ -824,7 +824,39 @@ async function renderPiyasaFiyatlari(body) {
   ]);
   const today = new Date().toISOString().slice(0,10);
 
+  // Group prices by `type · variety`; build series for line chart
+  const priceSeries = {};
+  for (const p of list) {
+    const t = types.find(x => x.id === p.crop_type_id);
+    const v = varieties.find(x => x.id === p.crop_variety_id);
+    const key = `${t?.name ?? "?"} · ${v?.name ?? "?"}`;
+    (priceSeries[key] = priceSeries[key] || []).push({ x: p.snapshot_date, y: p.market_price });
+  }
+  for (const key of Object.keys(priceSeries)) {
+    priceSeries[key].sort((a, b) => a.x.localeCompare(b.x));
+  }
+  const allDates = [...new Set(list.map(p => p.snapshot_date))].sort();
+
   body.innerHTML = `
+    <div class="card">
+      <h2>Son piyasa fiyatları</h2>
+      ${list.length === 0 ? `<div class="empty">Henüz piyasa fiyatı kaydı yok. Aşağıdaki formdan ekleyebilirsin.</div>` :
+        list.map(r => {
+          const t = types.find(x => x.id === r.crop_type_id);
+          const v = varieties.find(x => x.id === r.crop_variety_id);
+          return `<div class="list-item">
+            <div>
+              <div>${escape(t?.name ?? "?")} · ${escape(v?.name ?? "?")}</div>
+              <div class="meta">${r.snapshot_date} · ₺${r.market_price.toFixed(2)}/kg${r.source ? ` · ${escape(r.source)}` : ""}</div>
+            </div>
+            <button class="danger" data-del="${r.id}">Sil</button>
+          </div>`;
+        }).join("")}
+    </div>
+    <div class="card">
+      <h2>Zaman / fiyat grafiği (TL/kg)</h2>
+      ${allDates.length === 0 ? `<div class="empty">Grafiğin dolması için fiyat kaydı gerekiyor.</div>` : `<div class="chart-wrap"><canvas id="mp_chart"></canvas></div>`}
+    </div>
     <div class="card">
       <h2>Yeni piyasa fiyatı kaydı</h2>
       <label>Tarih</label><input id="mp_date" type="date" value="${today}" />
@@ -838,22 +870,32 @@ async function renderPiyasaFiyatlari(body) {
       <div style="height:12px;"></div>
       <button class="primary" id="mp_create">Kaydet</button>
     </div>
-    <div class="card">
-      <h2>Son piyasa fiyatları</h2>
-      ${list.length === 0 ? `<div class="empty">Henüz piyasa fiyatı kaydı yok. Yukarıdaki formdan ekleyebilirsin.</div>` :
-        list.map(r => {
-          const t = types.find(x => x.id === r.crop_type_id);
-          const v = varieties.find(x => x.id === r.crop_variety_id);
-          return `<div class="list-item">
-            <div>
-              <div>${escape(t?.name ?? "?")} · ${escape(v?.name ?? "?")}</div>
-              <div class="meta">${r.snapshot_date} · ₺${r.market_price.toFixed(2)}/kg${r.source ? ` · ${escape(r.source)}` : ""}</div>
-            </div>
-            <button class="danger" data-del="${r.id}">Sil</button>
-          </div>`;
-        }).join("")}
-    </div>
   `;
+
+  if (allDates.length > 0 && typeof Chart !== "undefined") {
+    const palette = ["#4ad28f","#ffb454","#ff5d6c","#7aa2f7","#bb9af7","#9ece6a","#f7768e","#e0af68"];
+    const datasets = Object.keys(priceSeries).map((key, i) => ({
+      label: key,
+      data: priceSeries[key],
+      borderColor: palette[i % palette.length],
+      backgroundColor: palette[i % palette.length],
+      tension: 0.2,
+      borderWidth: 2,
+    }));
+    new Chart(document.getElementById("mp_chart"), {
+      type: "line",
+      data: { datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        parsing: { xAxisKey: "x", yAxisKey: "y" },
+        plugins: { legend: { labels: { color: "#e6efe7" } } },
+        scales: {
+          x: { type: "category", labels: allDates, ticks: { color: "#8aa394" }, grid: { color: "rgba(42,59,51,0.4)" } },
+          y: { ticks: { color: "#8aa394" }, grid: { color: "rgba(42,59,51,0.4)" }, beginAtZero: true },
+        },
+      },
+    });
+  }
 
   function refreshVar() {
     const sel = document.getElementById("mp_var");
