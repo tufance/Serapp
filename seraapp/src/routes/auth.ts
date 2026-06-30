@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { verifyPassword, createSession, deleteSession, hashPassword } from "../auth";
 import type { AppContext } from "../types";
+import { parseCookie } from "../cookies";
 
 export const authRouter = new Hono<AppContext>();
 
@@ -13,15 +14,6 @@ function buildCookie(token: string): string {
 
 function expiredCookie(): string {
   return `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`;
-}
-
-function parseCookie(header: string | undefined, name: string): string | null {
-  if (!header) return null;
-  for (const part of header.split(";")) {
-    const [k, v] = part.trim().split("=");
-    if (k === name) return v;
-  }
-  return null;
 }
 
 authRouter.post("/auth/login", async (c) => {
