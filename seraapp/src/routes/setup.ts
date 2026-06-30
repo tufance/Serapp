@@ -25,3 +25,10 @@ setupRouter.post("/setup", async (c) => {
 
   return c.json({ ok: true });
 });
+
+setupRouter.get("/setup-status", async (c) => {
+  const existing = await c.env.DB
+    .prepare("SELECT value FROM app_config WHERE key='password_hash'")
+    .first<{ value: string }>();
+  return c.json({ initialized: !!existing });
+});

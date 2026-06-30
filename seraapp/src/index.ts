@@ -4,6 +4,11 @@ import { setupRouter } from "./routes/setup";
 import { authRouter } from "./routes/auth";
 import { seasonsRouter } from "./routes/seasons";
 import { masterRouter } from "./routes/master";
+import { seedlingsRouter } from "./routes/seedlings";
+import { supplyPurchasesRouter } from "./routes/supply-purchases";
+import { medicinePurchasesRouter } from "./routes/medicine-purchases";
+import { medicineApplicationsRouter } from "./routes/medicine-applications";
+import { stockRouter } from "./routes/stock";
 import { requireAuth } from "./middleware";
 
 const app = new Hono<AppContext>();
@@ -15,6 +20,11 @@ app.use("/api/auth/change-password", requireAuth);
 app.route("/api", authRouter);
 app.route("/api", seasonsRouter);
 app.route("/api", masterRouter);
+app.route("/api", seedlingsRouter);
+app.route("/api", supplyPurchasesRouter);
+app.route("/api", medicinePurchasesRouter);
+app.route("/api", medicineApplicationsRouter);
+app.route("/api", stockRouter);
 
 app.use("/api/me", requireAuth);
 app.get("/api/me", (c) => {
