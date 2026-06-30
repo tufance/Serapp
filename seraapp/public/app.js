@@ -52,6 +52,37 @@ function toast(message, kind = "") {
   setTimeout(() => el.remove(), 3000);
 }
 
+function openModal({ title, body, onSave, saveLabel = "Kaydet" }) {
+  // body: HTML string with form fields (inputs should have ids)
+  // onSave: async (modalRoot) => Promise<boolean> — return true to close
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal-card">
+      <h2>${escape(title)}</h2>
+      ${body}
+      <div class="modal-actions">
+        <button class="secondary" id="modal_cancel">İptal</button>
+        <button class="primary" id="modal_save">${escape(saveLabel)}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  document.getElementById("modal_cancel").onclick = close;
+  document.getElementById("modal_save").onclick = async () => {
+    const btn = document.getElementById("modal_save");
+    btn.disabled = true;
+    try {
+      const ok = await onSave(overlay);
+      if (ok !== false) close();
+    } finally {
+      btn.disabled = false;
+    }
+  };
+}
+
 function html(strings, ...values) {
   // basit template helper; XSS önlemiyor — tüm dinamik metinler textContent ile yazılır
   return strings.reduce((acc, s, i) => acc + s + (values[i] ?? ""), "");
@@ -666,7 +697,10 @@ async function renderSatislar(body) {
               <div>${escape(t?.name ?? "?")} · ${escape(v?.name ?? "?")}${r.buyer ? ` → ${escape(r.buyer)}` : ""}</div>
               <div class="meta">${r.sale_date} · ${r.quantity} kg × ₺${r.unit_price.toFixed(2)} = ₺${r.total_revenue.toFixed(2)}</div>
             </div>
-            <button class="danger" data-del="${r.id}">Sil</button>
+            <div class="row">
+              <button class="secondary" data-edit="${r.id}">Düzenle</button>
+              <button class="danger" data-del="${r.id}">Sil</button>
+            </div>
           </div>`;
         }).join("")}
     </div>
@@ -731,6 +765,53 @@ async function renderSatislar(body) {
       if (!confirm("Silinsin mi?")) return;
       await apiCall(`/api/sales/${btn.dataset.del}`, { method: "DELETE" });
       renderSatislar(body);
+    };
+  });
+
+  body.querySelectorAll("[data-edit]").forEach(btn => {
+    btn.onclick = () => {
+      const id = Number(btn.dataset.edit);
+      const r = list.find(x => x.id === id);
+      if (!r) return;
+      openModal({
+        title: "Satış düzenle",
+        body: `
+          <label>Tarih</label><input id="em_date" type="date" value="${r.sale_date}" />
+          <label>Miktar (kg)</label><input id="em_qty" type="number" inputmode="decimal" min="0" step="0.01" value="${r.quantity}" />
+          <label>Birim fiyat (TL/kg)</label><input id="em_up" type="number" inputmode="decimal" min="0" step="0.01" value="${r.unit_price}" />
+          <label>Toplam ciro (TL)</label><input id="em_tr" type="number" inputmode="decimal" min="0" step="0.01" value="${r.total_revenue}" />
+          <label>Birim maliyet (TL/kg, ops.)</label><input id="em_uc" type="number" inputmode="decimal" min="0" step="0.01" value="${r.unit_cost ?? ''}" />
+          <label>Toplam maliyet (TL, ops.)</label><input id="em_tc" type="number" inputmode="decimal" min="0" step="0.01" value="${r.total_cost ?? ''}" />
+          <label>Alıcı (ops.)</label><input id="em_buyer" value="${escape(r.buyer ?? '')}" />
+          <label>Notlar (ops.)</label><input id="em_notes" value="${escape(r.notes ?? '')}" />
+        `,
+        onSave: async () => {
+          const payload = {
+            sale_date: document.getElementById("em_date").value,
+            quantity: Number(document.getElementById("em_qty").value),
+            unit_price: Number(document.getElementById("em_up").value),
+            total_revenue: Number(document.getElementById("em_tr").value),
+            buyer: document.getElementById("em_buyer").value.trim(),
+            notes: document.getElementById("em_notes").value.trim(),
+          };
+          const ucVal = document.getElementById("em_uc").value;
+          const tcVal = document.getElementById("em_tc").value;
+          if (ucVal !== "") payload.unit_cost = Number(ucVal);
+          if (tcVal !== "") payload.total_cost = Number(tcVal);
+          if (!(payload.quantity > 0) || !(payload.unit_price >= 0)) {
+            toast("Geçersiz miktar/fiyat", "error");
+            return false;
+          }
+          try {
+            await apiCall(`/api/sales/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+            toast("Güncellendi");
+            renderSatislar(body);
+            return true;
+          } catch {
+            return false;
+          }
+        },
+      });
     };
   });
 }

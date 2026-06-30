@@ -60,3 +60,19 @@ label { display: block; color: var(--muted); font-size: 13px; margin: 12px 0 6px
 .empty { text-align: center; color: var(--muted); padding: 40px 16px; }
 .chart-wrap { position: relative; height: 220px; margin-top: 8px; }
 .chart-wrap canvas { max-height: 220px; }
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: flex; align-items: flex-end; justify-content: center;
+  z-index: 100; padding: 16px;
+}
+.modal-card {
+  background: var(--panel); border-radius: var(--radius);
+  width: 100%; max-width: 480px; max-height: 90dvh; overflow-y: auto;
+  padding: 16px;
+}
+@media (min-width: 600px) {
+  .modal-overlay { align-items: center; }
+}
+.modal-card h2 { margin: 0 0 12px; }
+.modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+.modal-actions button { flex: 1; }
