@@ -733,7 +733,86 @@ async function renderSatislar(body) {
   });
 }
 
-async function renderPiyasaFiyatlari(body) { body.innerHTML = `<div class="card"><div class="empty">Piyasa fiyatları UI (Task 9)</div></div>`; }
+async function renderPiyasaFiyatlari(body) {
+  body.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
+  const [types, varieties, list] = await Promise.all([
+    apiCall("/api/master/crop-types"),
+    apiCall("/api/master/crop-varieties"),
+    apiCall("/api/market-prices"),
+  ]);
+  const today = new Date().toISOString().slice(0,10);
+
+  body.innerHTML = `
+    <div class="card">
+      <h2>Yeni piyasa fiyatı kaydı</h2>
+      <label>Tarih</label><input id="mp_date" type="date" value="${today}" />
+      <label>Tür</label>
+      <select id="mp_type">${types.map(t => `<option value="${t.id}">${escape(t.name)}</option>`).join("")}</select>
+      <label>Cins</label>
+      <select id="mp_var"></select>
+      <label>Piyasa fiyatı (TL/kg)</label><input id="mp_price" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Kaynak (ops.)</label><input id="mp_source" placeholder="Antalya hali" />
+      <label>Notlar (ops.)</label><input id="mp_notes" />
+      <div style="height:12px;"></div>
+      <button class="primary" id="mp_create">Kaydet</button>
+    </div>
+    <div class="card">
+      <h2>Son piyasa fiyatları</h2>
+      ${list.length === 0 ? `<div class="empty">Henüz kayıt yok.</div>` :
+        list.map(r => {
+          const t = types.find(x => x.id === r.crop_type_id);
+          const v = varieties.find(x => x.id === r.crop_variety_id);
+          return `<div class="list-item">
+            <div>
+              <div>${escape(t?.name ?? "?")} · ${escape(v?.name ?? "?")}</div>
+              <div class="meta">${r.snapshot_date} · ₺${r.market_price.toFixed(2)}/kg${r.source ? ` · ${escape(r.source)}` : ""}</div>
+            </div>
+            <button class="danger" data-del="${r.id}">Sil</button>
+          </div>`;
+        }).join("")}
+    </div>
+  `;
+
+  function refreshVar() {
+    const sel = document.getElementById("mp_var");
+    const tid = Number(document.getElementById("mp_type").value);
+    const matches = varieties.filter(v => v.crop_type_id === tid);
+    sel.innerHTML = matches.length
+      ? matches.map(v => `<option value="${v.id}">${escape(v.name)}</option>`).join("")
+      : `<option value="">— Bu tür için cins yok —</option>`;
+  }
+  refreshVar();
+  document.getElementById("mp_type").onchange = refreshVar;
+
+  document.getElementById("mp_create").onclick = async () => {
+    const varVal = document.getElementById("mp_var").value;
+    if (!varVal) return toast("Önce bir cins ekle", "error");
+    const payload = {
+      snapshot_date: document.getElementById("mp_date").value,
+      crop_type_id: Number(document.getElementById("mp_type").value),
+      crop_variety_id: Number(varVal),
+      market_price: Number(document.getElementById("mp_price").value),
+      source: document.getElementById("mp_source").value.trim() || undefined,
+      notes: document.getElementById("mp_notes").value.trim() || undefined,
+    };
+    if (!payload.snapshot_date || !(payload.market_price >= 0)) {
+      return toast("Eksik veya geçersiz alan", "error");
+    }
+    try {
+      await apiCall("/api/market-prices", { method: "POST", body: JSON.stringify(payload) });
+      toast("Eklendi");
+      renderPiyasaFiyatlari(body);
+    } catch {}
+  };
+
+  body.querySelectorAll("[data-del]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Silinsin mi?")) return;
+      await apiCall(`/api/market-prices/${btn.dataset.del}`, { method: "DELETE" });
+      renderPiyasaFiyatlari(body);
+    };
+  });
+}
 
 async function renderIlacUygulama(body) {
   body.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
