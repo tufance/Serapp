@@ -106,3 +106,35 @@ describe("master /crop-varieties CRUD", () => {
     expect(r.status).toBe(400);
   });
 });
+
+describe("supply_categories & utility_types", () => {
+  let cookie: string;
+  beforeEach(async () => {
+    await resetDb(); await clearKV(); await migrate();
+    cookie = await authedCookie();
+  });
+
+  it("supply: requires name and unit", async () => {
+    const r = await SELF.fetch("https://example.com/api/master/supplies", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "kömür" }),
+    });
+    expect(r.status).toBe(400);
+  });
+
+  it("supply: full create succeeds", async () => {
+    const r = await SELF.fetch("https://example.com/api/master/supplies", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "kömür", unit: "kg" }),
+    });
+    expect(r.status).toBe(201);
+  });
+
+  it("utility: create electricity", async () => {
+    const r = await SELF.fetch("https://example.com/api/master/utilities", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "elektrik", unit: "kWh" }),
+    });
+    expect(r.status).toBe(201);
+  });
+});

@@ -126,3 +126,21 @@ mountTable({
     { name: "name", required: true, type: "string" },
   ],
 });
+
+mountTable({
+  path: "supplies",
+  table: "supply_categories",
+  fields: [
+    { name: "name", required: true, type: "string" },
+    { name: "unit", required: true, type: "string" },
+  ],
+});
+
+mountTable({
+  path: "utilities",
+  table: "utility_types",
+  fields: [
+    { name: "name", required: true, type: "string" },
+    { name: "unit", required: true, type: "string" },
+  ],
+});
