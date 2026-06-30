@@ -41,11 +41,9 @@ reportsRouter.get("/reports/season-summary", async (c) => {
   );
   if (!season) return c.json({ error: "season not found" }, 404);
 
-  const sales = await one<{ total_revenue: number; total_cost: number }>(
+  const sales = await one<{ total_revenue: number }>(
     c.env.DB,
-    `SELECT COALESCE(SUM(total_revenue),0) AS total_revenue,
-            COALESCE(SUM(total_cost),0) AS total_cost
-       FROM sales WHERE season_id=?`,
+    "SELECT COALESCE(SUM(total_revenue),0) AS total_revenue FROM sales WHERE season_id=?",
     seasonId,
   );
   const paid = await one<{ paid: number }>(
@@ -70,23 +68,21 @@ reportsRouter.get("/reports/season-summary", async (c) => {
   );
 
   const total_revenue = sales?.total_revenue ?? 0;
-  const total_cost_recorded = sales?.total_cost ?? 0;
   const medicine_cost = medicines?.medicine_cost ?? 0;
   const seedling_cost = seedlings?.seedling_cost ?? 0;
   const supply_cost = supplies?.supply_cost ?? 0;
   const partner_share = +(total_revenue * (season.partner_share_pct / 100)).toFixed(2);
   const partner_paid = paid?.paid ?? 0;
   const partner_balance = +(partner_share - partner_paid).toFixed(2);
-  // Net counts all recorded expenses (sales-side costs, seedling/supply/
-  // medicine purchases, partner payouts). Can go negative when expenses
-  // exceed revenue.
+  // Sales is pure revenue; the actual expenses are tracked separately
+  // as fidan/sarf/ilaç purchases plus partner payouts. Net can go
+  // negative when expenses exceed revenue.
   const net_estimated = +(
-    total_revenue - total_cost_recorded - seedling_cost - supply_cost - medicine_cost - partner_paid
+    total_revenue - seedling_cost - supply_cost - medicine_cost - partner_paid
   ).toFixed(2);
 
   return c.json({
     total_revenue,
-    total_cost_recorded,
     seedling_cost,
     supply_cost,
     medicine_cost,
