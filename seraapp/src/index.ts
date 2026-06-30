@@ -14,6 +14,7 @@ import { reportsRouter } from "./routes/reports";
 import { salesRouter } from "./routes/sales";
 import { marketPricesRouter } from "./routes/market-prices";
 import { payoutsRouter } from "./routes/payouts";
+import { notesRouter } from "./routes/notes";
 import { requireAuth } from "./middleware";
 
 const app = new Hono<AppContext>();
@@ -35,6 +36,7 @@ app.route("/api", reportsRouter);
 app.route("/api", salesRouter);
 app.route("/api", marketPricesRouter);
 app.route("/api", payoutsRouter);
+app.route("/api", notesRouter);
 
 app.use("/api/me", requireAuth);
 app.get("/api/me", (c) => {

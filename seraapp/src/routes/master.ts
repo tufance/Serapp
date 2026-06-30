@@ -161,6 +161,12 @@ mountTable({
   ],
 });
 
+mountTable({
+  path: "note-categories",
+  table: "note_categories",
+  fields: [{ name: "name", required: true, type: "string" }],
+});
+
 // map'ı manuel ekle (composite key, generic helper'a uymuyor)
 masterRouter.get("/master/disease-medicine-map", async (c) => {
   const diseaseId = c.req.query("disease_id");
