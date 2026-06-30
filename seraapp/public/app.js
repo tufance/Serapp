@@ -452,17 +452,9 @@ async function bootstrap() {
   try {
     const me = await fetch("/api/me", { credentials: "same-origin" });
     if (me.status === 401) {
-      // setup gerekli mi?
-      const probe = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ password: "__probe__" }),
-      });
-      if (probe.status === 401) {
-        // login mevcut, ama probe ile kontrol için: setup yapılmış mı?
-        const errBody = await probe.json().catch(() => ({}));
-        state.needsSetup = errBody.error === "not initialized";
-      }
+      const statusRes = await fetch("/api/setup-status");
+      const status = await statusRes.json().catch(() => ({}));
+      state.needsSetup = status.initialized === false;
       state.authed = false;
       state.page = state.needsSetup ? "setup" : "login";
     } else if (me.ok) {
