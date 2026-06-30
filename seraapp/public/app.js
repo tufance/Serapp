@@ -150,11 +150,11 @@ function renderLogin() {
 function renderHome() {
   app.innerHTML = `
     <header class="season-bar">
-      <div class="row" style="gap:10px; align-items:center;">
-        <img src="/logo.svg" alt="" style="width:28px; height:28px; flex-shrink:0;" />
-        <div>
-          <div class="label">Aktif sezon</div>
-          <div class="value" id="seasonName">${state.activeSeason ? escape(state.activeSeason.name) : "Sezon yok"}</div>
+      <div class="row" style="gap:10px; align-items:center; min-width:0;">
+        <img src="/logo.svg" alt="" style="width:32px; height:32px; flex-shrink:0;" />
+        <div style="min-width:0;">
+          <div class="value" style="line-height:1.1;">SerApp</div>
+          <div class="label" id="seasonName" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${state.activeSeason ? escape(state.activeSeason.name) : "Sezon yok"}</div>
         </div>
       </div>
       <button class="settings" id="openSettings" aria-label="Ayarlar">⚙</button>
@@ -1171,14 +1171,7 @@ async function renderNotlarTab(container) {
 
 async function renderPano(container) {
   if (!state.activeSeason) {
-    container.innerHTML = `
-      <div class="card" style="text-align:center; padding:20px 16px;">
-        <img src="/logo.svg" alt="" style="width:56px; height:56px; display:block; margin:0 auto;" />
-        <h1 style="margin:8px 0 0; font-size:22px; letter-spacing:0.5px;">SerApp</h1>
-        <p style="margin:4px 0 0; color:var(--muted); font-size:13px;">Sera takip ve mutabakat</p>
-      </div>
-      <div class="card"><h2>Pano</h2><div class="empty">Önce ⚙ Ayarlar > Sezonlar'dan bir sezon oluşturup "Aktif et" deyin.</div></div>
-    `;
+    container.innerHTML = `<div class="card"><h2>Pano</h2><div class="empty">Önce ⚙ Ayarlar > Sezonlar'dan bir sezon oluşturup "Aktif et" deyin.</div></div>`;
     return;
   }
   container.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
@@ -1230,12 +1223,6 @@ async function renderPano(container) {
   const allDates = [...new Set(prices.map(p => p.snapshot_date))].sort();
 
   container.innerHTML = `
-    <div class="card" style="text-align:center; padding:20px 16px;">
-      <img src="/logo.svg" alt="" style="width:56px; height:56px; display:block; margin:0 auto;" />
-      <h1 style="margin:8px 0 0; font-size:22px; letter-spacing:0.5px;">SerApp</h1>
-      <p style="margin:4px 0 0; color:var(--muted); font-size:13px;">Sera takip ve mutabakat</p>
-    </div>
-
     <div class="card">
       <h2>Piyasa fiyatları (TL/kg)</h2>
       ${allDates.length === 0 ? `<div class="empty">Henüz piyasa fiyatı kaydı yok.</div>` : `<div class="chart-wrap"><canvas id="chart_prices"></canvas></div>`}
