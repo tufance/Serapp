@@ -457,11 +457,29 @@ async function renderIlacAlim(body) {
   });
 }
 async function renderHareketTab(container) {
-  // Şimdilik tek alt-sekme; Faz 3'te "Tüketim" eklenecek
-  container.innerHTML = `<div id="hareketBody"></div>`;
+  const SUBS = [
+    { key: "ilac", label: "İlaç uygulaması" },
+    { key: "tuketim", label: "Tüketim" },
+  ];
+  container.innerHTML = `
+    <div class="card">
+      <div class="row" style="gap:8px; flex-wrap:wrap;">
+        ${SUBS.map(s =>
+          `<button class="${state.hareketSubTab===s.key?"primary":"secondary"}" data-sub="${s.key}">${s.label}</button>`
+        ).join("")}
+      </div>
+    </div>
+    <div id="hareketBody"></div>
+  `;
+  container.querySelectorAll("[data-sub]").forEach(b => {
+    b.onclick = () => { state.hareketSubTab = b.dataset.sub; renderTabContent(); };
+  });
   const body = document.getElementById("hareketBody");
-  await renderIlacUygulama(body);
+  if (state.hareketSubTab === "ilac") await renderIlacUygulama(body);
+  else if (state.hareketSubTab === "tuketim") await renderTuketim(body);
 }
+
+async function renderTuketim(body) { body.innerHTML = `<div class="card"><div class="empty">Tüketim UI (Task 6)</div></div>`; }
 
 async function renderIlacUygulama(body) {
   body.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
