@@ -168,7 +168,10 @@ function renderSettings() {
   });
   const body = document.getElementById("settingsBody");
   if (state.settingsTab === "seasons") renderSeasonsSettings(body);
-  else body.innerHTML = `<div class="card"><div class="empty">${escape(state.settingsTab)} ekranı sonraki task'ta.</div></div>`;
+  else if (state.settingsTab === "types") renderTypesSettings(body);
+  else if (state.settingsTab === "supplies") renderSuppliesSettings(body);
+  else if (state.settingsTab === "medicines") renderMedicinesSettings(body);
+  else if (state.settingsTab === "password") renderPasswordSettings(body);
 }
 
 async function renderSeasonsSettings(body) {
@@ -235,6 +238,199 @@ async function renderSeasonsSettings(body) {
       renderSeasonsSettings(body);
     };
   });
+}
+
+async function renderMasterCRUD(body, opts) {
+  // opts: { title, endpoint, fields: [{key,label,type,options?}], display(row) -> string }
+  const rows = await apiCall(opts.endpoint);
+  body.innerHTML = `
+    <div class="card">
+      <h2>Yeni ${escape(opts.title)}</h2>
+      ${opts.fields.map(f => `
+        <label>${escape(f.label)}</label>
+        ${f.type === "select"
+          ? `<select data-k="${f.key}">${f.options.map(o => `<option value="${o.value}">${escape(o.label)}</option>`).join("")}</select>`
+          : `<input data-k="${f.key}" type="${f.type === "number" ? "number" : "text"}" ${f.type === "number" ? 'inputmode="decimal"' : ""} />`
+        }
+      `).join("")}
+      <div style="height:12px;"></div>
+      <button class="primary" id="m_create">Kaydet</button>
+    </div>
+    <div class="card">
+      <h2>${escape(opts.title)} listesi</h2>
+      ${rows.length === 0 ? `<div class="empty">Henüz kayıt yok.</div>` :
+        rows.map(r => `
+          <div class="list-item">
+            <div>${escape(opts.display(r))}</div>
+            <button class="danger" data-del="${r.id}">Sil</button>
+          </div>`).join("")
+      }
+    </div>
+  `;
+  document.getElementById("m_create").onclick = async () => {
+    const payload = {};
+    for (const f of opts.fields) {
+      const el = body.querySelector(`[data-k="${f.key}"]`);
+      let v = el.value;
+      if (f.type === "number") v = v === "" ? undefined : Number(v);
+      if (f.type === "select") v = Number(v);
+      payload[f.key] = v;
+    }
+    try {
+      await apiCall(opts.endpoint, { method: "POST", body: JSON.stringify(payload) });
+      toast("Eklendi");
+      renderMasterCRUD(body, opts);
+    } catch {}
+  };
+  body.querySelectorAll("[data-del]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Silinsin mi?")) return;
+      await apiCall(`${opts.endpoint}/${btn.dataset.del}`, { method: "DELETE" });
+      renderMasterCRUD(body, opts);
+    };
+  });
+}
+
+async function renderTypesSettings(body) {
+  body.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
+  await renderMasterCRUD(body, {
+    title: "tür",
+    endpoint: "/api/master/crop-types",
+    fields: [{ key: "name", label: "Ad", type: "text" }],
+    display: (r) => r.name,
+  });
+  // altına varieties:
+  const types = await apiCall("/api/master/crop-types");
+  const extra = document.createElement("div");
+  body.appendChild(extra);
+  await renderMasterCRUD(extra, {
+    title: "cins",
+    endpoint: "/api/master/crop-varieties",
+    fields: [
+      { key: "crop_type_id", label: "Tür", type: "select",
+        options: types.map(t => ({ value: t.id, label: t.name })) },
+      { key: "name", label: "Cins adı", type: "text" },
+    ],
+    display: (r) => {
+      const t = types.find(x => x.id === r.crop_type_id);
+      return `${t ? t.name + " · " : ""}${r.name}`;
+    },
+  });
+}
+
+async function renderSuppliesSettings(body) {
+  body.innerHTML = "";
+  const sup = document.createElement("div"); body.appendChild(sup);
+  await renderMasterCRUD(sup, {
+    title: "sarf",
+    endpoint: "/api/master/supplies",
+    fields: [
+      { key: "name", label: "Ad", type: "text" },
+      { key: "unit", label: "Birim (kg/m2/...)", type: "text" },
+    ],
+    display: (r) => `${r.name} (${r.unit})`,
+  });
+  const ut = document.createElement("div"); body.appendChild(ut);
+  await renderMasterCRUD(ut, {
+    title: "tüketim kalemi",
+    endpoint: "/api/master/utilities",
+    fields: [
+      { key: "name", label: "Ad", type: "text" },
+      { key: "unit", label: "Birim (kWh/m3/...)", type: "text" },
+    ],
+    display: (r) => `${r.name} (${r.unit})`,
+  });
+}
+
+async function renderMedicinesSettings(body) {
+  body.innerHTML = "";
+  const dis = document.createElement("div"); body.appendChild(dis);
+  await renderMasterCRUD(dis, {
+    title: "hastalık",
+    endpoint: "/api/master/diseases",
+    fields: [{ key: "name", label: "Ad", type: "text" }],
+    display: (r) => r.name,
+  });
+  const med = document.createElement("div"); body.appendChild(med);
+  await renderMasterCRUD(med, {
+    title: "ilaç",
+    endpoint: "/api/master/medicines",
+    fields: [
+      { key: "name", label: "Ad", type: "text" },
+      { key: "active_ingredient", label: "Etken madde (ops.)", type: "text" },
+      { key: "unit", label: "Birim (ml/g/...)", type: "text" },
+    ],
+    display: (r) => `${r.name}${r.active_ingredient ? ` · ${r.active_ingredient}` : ""} (${r.unit})`,
+  });
+
+  // disease-medicine map UI: select x select + listele
+  const diseases = await apiCall("/api/master/diseases");
+  const medicines = await apiCall("/api/master/medicines");
+  const map = await apiCall("/api/master/disease-medicine-map");
+  const mapCard = document.createElement("div");
+  mapCard.className = "card";
+  mapCard.innerHTML = `
+    <h2>Hastalık ↔ İlaç eşlemeleri</h2>
+    <label>Hastalık</label>
+    <select id="m_disease">${diseases.map(d => `<option value="${d.id}">${escape(d.name)}</option>`).join("")}</select>
+    <label>İlaç</label>
+    <select id="m_med">${medicines.map(m => `<option value="${m.id}">${escape(m.name)}</option>`).join("")}</select>
+    <div style="height:12px;"></div>
+    <button class="primary" id="m_map_add">Eşle</button>
+    <div style="height:16px;"></div>
+    ${map.length === 0 ? `<div class="empty">Henüz eşleme yok.</div>` :
+      map.map(m => {
+        const d = diseases.find(x => x.id === m.disease_id);
+        const med = medicines.find(x => x.id === m.medicine_id);
+        return `<div class="list-item">
+          <div>${escape(d?.name ?? "?")} ↔ ${escape(med?.name ?? "?")}</div>
+          <button class="danger" data-d="${m.disease_id}" data-m="${m.medicine_id}">Kaldır</button>
+        </div>`;
+      }).join("")
+    }
+  `;
+  body.appendChild(mapCard);
+  document.getElementById("m_map_add").onclick = async () => {
+    const disease_id = Number(document.getElementById("m_disease").value);
+    const medicine_id = Number(document.getElementById("m_med").value);
+    try {
+      await apiCall("/api/master/disease-medicine-map", {
+        method: "POST", body: JSON.stringify({ disease_id, medicine_id }),
+      });
+      renderMedicinesSettings(body);
+    } catch {}
+  };
+  mapCard.querySelectorAll("[data-d]").forEach(btn => {
+    btn.onclick = async () => {
+      await apiCall(`/api/master/disease-medicine-map?disease_id=${btn.dataset.d}&medicine_id=${btn.dataset.m}`, {
+        method: "DELETE",
+      });
+      renderMedicinesSettings(body);
+    };
+  });
+}
+
+function renderPasswordSettings(body) {
+  body.innerHTML = `
+    <div class="card">
+      <h2>Parola değiştir</h2>
+      <label>Mevcut parola</label><input id="cur" type="password" autocomplete="current-password" />
+      <label>Yeni parola</label><input id="next" type="password" autocomplete="new-password" />
+      <div style="height:12px;"></div>
+      <button class="primary" id="changeBtn">Değiştir</button>
+    </div>
+  `;
+  document.getElementById("changeBtn").onclick = async () => {
+    const current = document.getElementById("cur").value;
+    const next = document.getElementById("next").value;
+    if (!current || !next) return toast("Tüm alanlar gerekli", "error");
+    try {
+      await apiCall("/api/auth/change-password", {
+        method: "POST", body: JSON.stringify({ current, next }),
+      });
+      toast("Parola güncellendi");
+    } catch {}
+  };
 }
 
 function escape(s) {
