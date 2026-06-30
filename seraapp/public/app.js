@@ -174,7 +174,102 @@ function renderAlimTab(container) {
   else if (state.alimSubTab === "ilac") renderIlacAlim(body);
 }
 
-async function renderFidanAlim(body) { body.innerHTML = `<div class="card"><div class="empty">Fidan UI (Task 13)</div></div>`; }
+async function renderFidanAlim(body) {
+  body.innerHTML = `<div class="card"><div class="empty">Yükleniyor…</div></div>`;
+  const seasonId = state.activeSeason.id;
+  const [types, varieties, list] = await Promise.all([
+    apiCall("/api/master/crop-types"),
+    apiCall("/api/master/crop-varieties"),
+    apiCall(`/api/seedlings?season_id=${seasonId}`),
+  ]);
+  const today = new Date().toISOString().slice(0,10);
+
+  body.innerHTML = `
+    <div class="card">
+      <h2>Yeni fidan alımı</h2>
+      <label>Tarih</label><input id="f_date" type="date" value="${today}" />
+      <label>Tür</label>
+      <select id="f_type">${types.map(t => `<option value="${t.id}">${escape(t.name)}</option>`).join("")}</select>
+      <label>Cins</label>
+      <select id="f_variety"></select>
+      <label>Adet</label><input id="f_qty" type="number" inputmode="numeric" min="1" />
+      <label>Birim maliyet (TL)</label><input id="f_unit" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Toplam (TL)</label><input id="f_total" type="number" inputmode="decimal" min="0" step="0.01" />
+      <label>Tedarikçi (ops.)</label><input id="f_supplier" />
+      <label>Notlar (ops.)</label><input id="f_notes" />
+      <div style="height:12px;"></div>
+      <button class="primary" id="f_create">Kaydet</button>
+    </div>
+    <div class="card">
+      <h2>Bu sezonun fidan alımları</h2>
+      ${list.length === 0 ? `<div class="empty">Henüz alım yok.</div>` :
+        list.map(r => {
+          const t = types.find(x => x.id === r.crop_type_id);
+          const v = varieties.find(x => x.id === r.crop_variety_id);
+          return `<div class="list-item">
+            <div>
+              <div>${escape((t?.name ?? "?"))} · ${escape((v?.name ?? "?"))}</div>
+              <div class="meta">${r.purchase_date} · ${r.quantity} adet × ₺${r.unit_cost.toFixed(2)} = ₺${r.total_cost.toFixed(2)}${r.supplier ? ` · ${escape(r.supplier)}` : ""}</div>
+            </div>
+            <button class="danger" data-del="${r.id}">Sil</button>
+          </div>`;
+        }).join("")
+      }
+    </div>
+  `;
+
+  function refreshVarietyOptions() {
+    const sel = document.getElementById("f_variety");
+    const tid = Number(document.getElementById("f_type").value);
+    const matches = varieties.filter(v => v.crop_type_id === tid);
+    sel.innerHTML = matches.length
+      ? matches.map(v => `<option value="${v.id}">${escape(v.name)}</option>`).join("")
+      : `<option value="">— Bu tür için cins yok —</option>`;
+  }
+  refreshVarietyOptions();
+  document.getElementById("f_type").onchange = refreshVarietyOptions;
+
+  const qty = document.getElementById("f_qty");
+  const unit = document.getElementById("f_unit");
+  const total = document.getElementById("f_total");
+  function recalc() {
+    const q = Number(qty.value), u = Number(unit.value);
+    if (q > 0 && u >= 0) total.value = (q * u).toFixed(2);
+  }
+  qty.oninput = recalc; unit.oninput = recalc;
+
+  document.getElementById("f_create").onclick = async () => {
+    const varietyVal = document.getElementById("f_variety").value;
+    if (!varietyVal) return toast("Önce bir cins ekle", "error");
+    const payload = {
+      season_id: seasonId,
+      purchase_date: document.getElementById("f_date").value,
+      crop_type_id: Number(document.getElementById("f_type").value),
+      crop_variety_id: Number(varietyVal),
+      quantity: Number(qty.value),
+      unit_cost: Number(unit.value),
+      total_cost: Number(total.value),
+      supplier: document.getElementById("f_supplier").value.trim() || undefined,
+      notes: document.getElementById("f_notes").value.trim() || undefined,
+    };
+    if (!payload.purchase_date || !(payload.quantity > 0) || !(payload.unit_cost >= 0)) {
+      return toast("Eksik veya geçersiz alan", "error");
+    }
+    try {
+      await apiCall("/api/seedlings", { method: "POST", body: JSON.stringify(payload) });
+      toast("Eklendi");
+      renderFidanAlim(body);
+    } catch {}
+  };
+
+  body.querySelectorAll("[data-del]").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Silinsin mi?")) return;
+      await apiCall(`/api/seedlings/${btn.dataset.del}`, { method: "DELETE" });
+      renderFidanAlim(body);
+    };
+  });
+}
 async function renderSarfAlim(body) { body.innerHTML = `<div class="card"><div class="empty">Sarf UI (Task 14)</div></div>`; }
 async function renderIlacAlim(body) { body.innerHTML = `<div class="card"><div class="empty">İlaç UI (Task 15)</div></div>`; }
 async function renderHareketTab(container) { container.innerHTML = `<div class="card"><div class="empty">İlaç uygulamaları UI (Task 16)</div></div>`; }
