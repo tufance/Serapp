@@ -7,6 +7,18 @@ const state = {
   page: "loading", // loading|setup|login|home
 };
 
+const TABS = [
+  { key: "pano", label: "Pano" },
+  { key: "alim", label: "Alım" },
+  { key: "hareket", label: "Hareket" },
+  { key: "satis", label: "Satış" },
+  { key: "ortak", label: "Ortak" },
+];
+
+state.activeTab = state.activeTab || "pano";
+state.settingsOpen = state.settingsOpen || false;
+state.settingsTab = state.settingsTab || "seasons";
+
 async function apiCall(path, opts = {}) {
   const res = await fetch(path, {
     ...opts,
@@ -98,28 +110,64 @@ function renderLogin() {
 }
 
 function renderHome() {
-  // Task 24'te gerçek sekmeli yapı gelecek; şimdilik placeholder
   app.innerHTML = `
     <header class="season-bar">
       <div>
         <div class="label">Aktif sezon</div>
-        <div class="value">${state.activeSeason ? escape(state.activeSeason.name) : "—"}</div>
+        <div class="value" id="seasonName">${state.activeSeason ? escape(state.activeSeason.name) : "Sezon yok"}</div>
       </div>
+      <button class="settings" id="openSettings" aria-label="Ayarlar">⚙</button>
+    </header>
+    <main id="content"></main>
+    <nav class="bottom">
+      ${TABS.map(t => `<button data-tab="${t.key}" class="${state.activeTab === t.key ? "active" : ""}">${t.label}</button>`).join("")}
+    </nav>
+  `;
+  document.querySelectorAll("nav.bottom button").forEach(b => {
+    b.onclick = () => { state.activeTab = b.dataset.tab; renderHome(); };
+  });
+  document.getElementById("openSettings").onclick = () => { state.settingsOpen = true; renderSettings(); };
+  renderTabContent();
+}
+
+function renderTabContent() {
+  const c = document.getElementById("content");
+  if (!state.activeSeason && state.activeTab !== "pano") {
+    c.innerHTML = `<div class="card"><div class="empty">Önce ayarlardan bir sezon oluştur ve aktif et.</div></div>`;
+    return;
+  }
+  if (state.activeTab === "pano") c.innerHTML = `<div class="card"><h2>Pano</h2><div class="empty">Sonraki fazlarda dolacak.</div></div>`;
+  else c.innerHTML = `<div class="card"><h2>${escape(TABS.find(t=>t.key===state.activeTab).label)}</h2><div class="empty">Bu modül sonraki fazlarda gelecek.</div></div>`;
+}
+
+function renderSettings() {
+  app.innerHTML = `
+    <header class="season-bar">
+      <button class="settings" id="back" aria-label="Geri">←</button>
+      <div class="value">Ayarlar</div>
       <button class="settings" id="logout" aria-label="Çıkış">⎋</button>
     </header>
     <main>
       <div class="card">
-        <h2>Pano</h2>
-        <div class="empty">Modüller sonraki fazlarda gelecek.</div>
+        <div class="row" style="gap:8px; flex-wrap:wrap;">
+          ${["seasons","types","supplies","medicines","password"].map(k =>
+            `<button class="${state.settingsTab===k?"primary":"secondary"}" data-stab="${k}">${({seasons:"Sezonlar",types:"Tür/Cins",supplies:"Sarf/Utility",medicines:"İlaç/Hastalık",password:"Parola"})[k]}</button>`
+          ).join("")}
+        </div>
       </div>
+      <div id="settingsBody"></div>
     </main>
   `;
+  document.getElementById("back").onclick = () => { state.settingsOpen = false; renderHome(); };
   document.getElementById("logout").onclick = async () => {
     await apiCall("/api/auth/logout", { method: "POST" }).catch(()=>{});
-    state.authed = false;
-    state.page = "login";
-    render();
+    state.authed = false; state.page = "login"; render();
   };
+  document.querySelectorAll("[data-stab]").forEach(b => {
+    b.onclick = () => { state.settingsTab = b.dataset.stab; renderSettings(); };
+  });
+  document.getElementById("settingsBody").innerHTML =
+    `<div class="card"><div class="empty">${escape(state.settingsTab)} ekranı bir sonraki task'ta gelecek.</div></div>`;
 }
 
 function escape(s) {
