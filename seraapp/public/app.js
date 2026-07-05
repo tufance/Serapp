@@ -681,7 +681,7 @@ async function renderTuketim(body) {
           const it = pool.find(x => x.id === r.ref_id);
           const cost = r.total_cost != null ? ` · ₺${r.total_cost.toFixed(2)}` : "";
           return `<div class="list-item">
-            <div>
+            <div class="clickable" data-detail="${r.id}">
               <div>${escape(it?.name ?? "?")} <span class="meta">[${r.item_type}]</span></div>
               <div class="meta">${r.period_month} · ${r.quantity} ${escape(r.unit)}${cost}</div>
             </div>
@@ -690,6 +690,25 @@ async function renderTuketim(body) {
         }).join("")}
     </div>
   `;
+
+  body.querySelectorAll("[data-detail]").forEach(el => {
+    el.onclick = () => {
+      const r = list.find(x => x.id === Number(el.dataset.detail));
+      if (!r) return;
+      const pool = r.item_type === "supply" ? supplies : utilities;
+      const it = pool.find(x => x.id === r.ref_id);
+      showDetailModal("Tüketim kaydı detayı", [
+        { label: "Dönem", value: r.period_month },
+        { label: "Tür", value: r.item_type === "supply" ? "Sarf (stoklu)" : "Tüketim kalemi" },
+        { label: "Kalem", value: it?.name ?? "?" },
+        { label: "Miktar", value: `${r.quantity} ${r.unit}` },
+        { label: "Birim maliyet", value: r.unit_cost != null ? `₺${r.unit_cost.toFixed(2)}` : null },
+        { label: "Toplam", value: r.total_cost != null ? `₺${r.total_cost.toFixed(2)}` : null },
+        { label: "Notlar", value: r.notes },
+        { label: "Kayıt tarihi", value: (r.created_at || "").slice(0, 16).replace("T", " ") },
+      ]);
+    };
+  });
 
   function refreshRefOptions() {
     const type = document.getElementById("t_type").value;
@@ -1419,7 +1438,7 @@ async function renderIlacUygulama(body) {
           const m = meds.find(x => x.id === r.medicine_id);
           const d = diseases.find(x => x.id === r.disease_id);
           return `<div class="list-item">
-            <div>
+            <div class="clickable" data-detail="${r.id}">
               <div>${escape(d?.name ?? "?")} → ${escape(m?.name ?? "?")}</div>
               <div class="meta">${r.application_date} · ${r.quantity_used}${r.target ? ` · ${escape(r.target)}` : ""}</div>
             </div>
@@ -1428,6 +1447,25 @@ async function renderIlacUygulama(body) {
         }).join("")}
     </div>
   `;
+
+  body.querySelectorAll("[data-detail]").forEach(el => {
+    el.onclick = () => {
+      const r = list.find(x => x.id === Number(el.dataset.detail));
+      if (!r) return;
+      const m = meds.find(x => x.id === r.medicine_id);
+      const d = diseases.find(x => x.id === r.disease_id);
+      showDetailModal("İlaç uygulaması detayı", [
+        { label: "Tarih", value: r.application_date },
+        { label: "Hastalık", value: d?.name ?? "?" },
+        { label: "İlaç", value: m?.name ?? "?" },
+        { label: "Etken madde", value: m?.active_ingredient },
+        { label: "Kullanılan miktar", value: `${r.quantity_used} ${m?.unit ?? ""}`.trim() },
+        { label: "Hedef", value: r.target },
+        { label: "Notlar", value: r.notes },
+        { label: "Kayıt tarihi", value: (r.created_at || "").slice(0, 16).replace("T", " ") },
+      ]);
+    };
+  });
 
   function refreshMedOptions() {
     const did = Number(document.getElementById("ma_disease").value);
