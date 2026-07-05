@@ -85,6 +85,29 @@ function openModal({ title, body, onSave, saveLabel = "Kaydet" }) {
   };
 }
 
+function showDetailModal(title, rows) {
+  // rows: [{ label, value }] — value already a display string; null/"" rows skipped
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal-card">
+      <h2>${escape(title)}</h2>
+      ${rows.filter(r => r.value !== null && r.value !== undefined && r.value !== "").map(r => `
+        <div class="list-item">
+          <div class="meta">${escape(r.label)}</div>
+          <div style="text-align:right;">${escape(String(r.value))}</div>
+        </div>`).join("")}
+      <div class="modal-actions">
+        <button class="secondary" id="detail_close">Kapat</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  document.getElementById("detail_close").onclick = close;
+}
+
 function html(strings, ...values) {
   // basit template helper; XSS önlemiyor — tüm dinamik metinler textContent ile yazılır
   return strings.reduce((acc, s, i) => acc + s + (values[i] ?? ""), "");
@@ -278,7 +301,7 @@ async function renderFidanAlim(body) {
           const t = types.find(x => x.id === r.crop_type_id);
           const v = varieties.find(x => x.id === r.crop_variety_id);
           return `<div class="list-item">
-            <div>
+            <div class="clickable" data-detail="${r.id}">
               <div>${escape((t?.name ?? "?"))} · ${escape((v?.name ?? "?"))}</div>
               <div class="meta">${r.purchase_date} · ${r.quantity} adet × ₺${r.unit_cost.toFixed(2)} = ₺${r.total_cost.toFixed(2)}${r.supplier ? ` · ${escape(r.supplier)}` : ""}</div>
             </div>
@@ -288,6 +311,26 @@ async function renderFidanAlim(body) {
       }
     </div>
   `;
+
+  body.querySelectorAll("[data-detail]").forEach(el => {
+    el.onclick = () => {
+      const r = list.find(x => x.id === Number(el.dataset.detail));
+      if (!r) return;
+      const t = types.find(x => x.id === r.crop_type_id);
+      const v = varieties.find(x => x.id === r.crop_variety_id);
+      showDetailModal("Fidan alımı detayı", [
+        { label: "Tarih", value: r.purchase_date },
+        { label: "Tür", value: t?.name ?? "?" },
+        { label: "Cins", value: v?.name ?? "?" },
+        { label: "Adet", value: `${r.quantity} adet` },
+        { label: "Birim maliyet", value: `₺${r.unit_cost.toFixed(2)}` },
+        { label: "Toplam", value: `₺${r.total_cost.toFixed(2)}` },
+        { label: "Tedarikçi", value: r.supplier },
+        { label: "Notlar", value: r.notes },
+        { label: "Kayıt tarihi", value: (r.created_at || "").slice(0, 16).replace("T", " ") },
+      ]);
+    };
+  });
 
   function refreshVarietyOptions() {
     const sel = document.getElementById("f_variety");
@@ -380,7 +423,7 @@ async function renderSarfAlim(body) {
         list.map(r => {
           const cat = cats.find(c => c.id === r.supply_category_id);
           return `<div class="list-item">
-            <div>
+            <div class="clickable" data-detail="${r.id}">
               <div>${escape(cat?.name ?? "?")}</div>
               <div class="meta">${r.purchase_date} · ${r.quantity} ${escape(r.unit)} × ₺${r.unit_cost.toFixed(2)} = ₺${r.total_cost.toFixed(2)}</div>
             </div>
@@ -389,6 +432,24 @@ async function renderSarfAlim(body) {
         }).join("")}
     </div>
   `;
+
+  body.querySelectorAll("[data-detail]").forEach(el => {
+    el.onclick = () => {
+      const r = list.find(x => x.id === Number(el.dataset.detail));
+      if (!r) return;
+      const cat = cats.find(c => c.id === r.supply_category_id);
+      showDetailModal("Sarf alımı detayı", [
+        { label: "Tarih", value: r.purchase_date },
+        { label: "Kategori", value: cat?.name ?? "?" },
+        { label: "Miktar", value: `${r.quantity} ${r.unit}` },
+        { label: "Birim maliyet", value: `₺${r.unit_cost.toFixed(2)}` },
+        { label: "Toplam", value: `₺${r.total_cost.toFixed(2)}` },
+        { label: "Tedarikçi", value: r.supplier },
+        { label: "Notlar", value: r.notes },
+        { label: "Kayıt tarihi", value: (r.created_at || "").slice(0, 16).replace("T", " ") },
+      ]);
+    };
+  });
 
   function syncUnit() {
     const sel = document.getElementById("sp_cat");
@@ -473,7 +534,7 @@ async function renderIlacAlim(body) {
         list.map(r => {
           const m = meds.find(x => x.id === r.medicine_id);
           return `<div class="list-item">
-            <div>
+            <div class="clickable" data-detail="${r.id}">
               <div>${escape(m?.name ?? "?")}</div>
               <div class="meta">${r.purchase_date} · ${r.quantity} ${escape(r.unit)} × ₺${r.unit_cost.toFixed(2)} = ₺${r.total_cost.toFixed(2)}</div>
             </div>
@@ -482,6 +543,25 @@ async function renderIlacAlim(body) {
         }).join("")}
     </div>
   `;
+
+  body.querySelectorAll("[data-detail]").forEach(el => {
+    el.onclick = () => {
+      const r = list.find(x => x.id === Number(el.dataset.detail));
+      if (!r) return;
+      const m = meds.find(x => x.id === r.medicine_id);
+      showDetailModal("İlaç alımı detayı", [
+        { label: "Tarih", value: r.purchase_date },
+        { label: "İlaç", value: m?.name ?? "?" },
+        { label: "Etken madde", value: m?.active_ingredient },
+        { label: "Miktar", value: `${r.quantity} ${r.unit}` },
+        { label: "Birim maliyet", value: `₺${r.unit_cost.toFixed(2)}` },
+        { label: "Toplam", value: `₺${r.total_cost.toFixed(2)}` },
+        { label: "Tedarikçi", value: r.supplier },
+        { label: "Notlar", value: r.notes },
+        { label: "Kayıt tarihi", value: (r.created_at || "").slice(0, 16).replace("T", " ") },
+      ]);
+    };
+  });
 
   function syncUnit() {
     const sel = document.getElementById("mp_med");
