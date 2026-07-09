@@ -225,6 +225,41 @@ describe("GET /api/reports/season-summary", () => {
     expect(j.medicine_cost).toBe(200);
     expect(j.net_estimated).toBe(-200); // 0 revenue - 0 sales cost - 200 medicine - 0 payout
   });
+
+  it("counts utility consumption as expense but NOT supply consumption", async () => {
+    const util = await (await SELF.fetch("https://example.com/api/master/utilities", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "traktör sürme", unit: "saat" }),
+    })).json() as any;
+    await SELF.fetch("https://example.com/api/consumption", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({
+        season_id: seasonId, period_month: "2025-10",
+        item_type: "utility", ref_id: util.id,
+        quantity: 5, unit: "saat",
+        unit_cost: 2000, total_cost: 10000,
+      }),
+    });
+    // Supply consumption with a cost must NOT count again (purchase already did)
+    const cat = await (await SELF.fetch("https://example.com/api/master/supplies", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "kömür3", unit: "kg" }),
+    })).json() as any;
+    await SELF.fetch("https://example.com/api/consumption", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({
+        season_id: seasonId, period_month: "2025-10",
+        item_type: "supply", ref_id: cat.id,
+        quantity: 30, unit: "kg",
+        unit_cost: 5, total_cost: 150,
+      }),
+    });
+
+    const res = await SELF.fetch(`https://example.com/api/reports/season-summary?season_id=${seasonId}`, { headers: { cookie } });
+    const j = await res.json() as any;
+    expect(j.utility_cost).toBe(10000);
+    expect(j.net_estimated).toBe(-10000); // only the utility consumption counts
+  });
 });
 
 describe("GET /api/reports/reconciliation", () => {

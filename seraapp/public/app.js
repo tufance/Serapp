@@ -1276,7 +1276,7 @@ async function renderPano(container) {
   const balanceLabel = summary.partner_balance > 0 ? "borç" : (summary.partner_balance < 0 ? "fazla" : "denk");
   const balanceColor = summary.partner_balance > 0 ? "var(--danger)" : (summary.partner_balance < 0 ? "var(--warn)" : "var(--accent)");
   const netColor = summary.net_estimated > 0 ? "var(--accent)" : (summary.net_estimated < 0 ? "var(--danger)" : "var(--text)");
-  const totalExpenses = (summary.seedling_cost ?? 0) + (summary.supply_cost ?? 0) + (summary.medicine_cost ?? 0) + (summary.partner_paid ?? 0);
+  const totalExpenses = (summary.seedling_cost ?? 0) + (summary.supply_cost ?? 0) + (summary.medicine_cost ?? 0) + (summary.utility_cost ?? 0) + (summary.partner_paid ?? 0);
 
   const recent = [];
   for (const s of sales.slice(0, 5)) {
@@ -1327,6 +1327,7 @@ async function renderPano(container) {
         <div class="list-item sub"><div>Fidan alımı</div><div class="meta" style="color:var(--danger);">− ₺${(summary.seedling_cost ?? 0).toFixed(2)}</div></div>
         <div class="list-item sub"><div>Sarf alımı</div><div class="meta" style="color:var(--danger);">− ₺${(summary.supply_cost ?? 0).toFixed(2)}</div></div>
         <div class="list-item sub"><div>İlaç alımı</div><div class="meta" style="color:var(--danger);">− ₺${(summary.medicine_cost ?? 0).toFixed(2)}</div></div>
+        <div class="list-item sub"><div>Tüketim (stoksuz)</div><div class="meta" style="color:var(--danger);">− ₺${(summary.utility_cost ?? 0).toFixed(2)}</div></div>
         <div class="list-item sub"><div>Ortağa ödenen</div><div class="meta" style="color:var(--danger);">− ₺${summary.partner_paid.toFixed(2)}</div></div>
       </details>
       <div class="list-item"><div><strong>Net tahmini</strong></div><div class="meta" style="font-size:16px;font-weight:600;color:${netColor};">₺${summary.net_estimated.toFixed(2)}</div></div>

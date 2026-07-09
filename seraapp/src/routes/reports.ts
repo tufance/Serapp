@@ -66,19 +66,28 @@ reportsRouter.get("/reports/season-summary", async (c) => {
     "SELECT COALESCE(SUM(total_cost),0) AS supply_cost FROM supply_purchases WHERE season_id=?",
     seasonId,
   );
+  // Utility consumption (elektrik, su, traktör sürme…) is only recorded
+  // in consumption_records — a real expense. Supply consumption is NOT
+  // counted here: its cost is already covered by supply_purchases.
+  const utilities = await one<{ utility_cost: number }>(
+    c.env.DB,
+    "SELECT COALESCE(SUM(total_cost),0) AS utility_cost FROM consumption_records WHERE season_id=? AND item_type='utility'",
+    seasonId,
+  );
 
   const total_revenue = sales?.total_revenue ?? 0;
   const medicine_cost = medicines?.medicine_cost ?? 0;
   const seedling_cost = seedlings?.seedling_cost ?? 0;
   const supply_cost = supplies?.supply_cost ?? 0;
+  const utility_cost = utilities?.utility_cost ?? 0;
   const partner_share = +(total_revenue * (season.partner_share_pct / 100)).toFixed(2);
   const partner_paid = paid?.paid ?? 0;
   const partner_balance = +(partner_share - partner_paid).toFixed(2);
-  // Sales is pure revenue; the actual expenses are tracked separately
-  // as fidan/sarf/ilaç purchases plus partner payouts. Net can go
-  // negative when expenses exceed revenue.
+  // Sales is pure revenue; expenses are fidan/sarf/ilaç purchases,
+  // utility consumption and partner payouts. Net can go negative when
+  // expenses exceed revenue.
   const net_estimated = +(
-    total_revenue - seedling_cost - supply_cost - medicine_cost - partner_paid
+    total_revenue - seedling_cost - supply_cost - medicine_cost - utility_cost - partner_paid
   ).toFixed(2);
 
   return c.json({
@@ -86,6 +95,7 @@ reportsRouter.get("/reports/season-summary", async (c) => {
     seedling_cost,
     supply_cost,
     medicine_cost,
+    utility_cost,
     net_estimated,
     partner_share_pct: season.partner_share_pct,
     partner_share,
