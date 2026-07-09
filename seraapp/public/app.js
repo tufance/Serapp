@@ -1288,13 +1288,13 @@ async function renderPano(container) {
   recent.sort((a, b) => b.date.localeCompare(a.date));
   const top5 = recent.slice(0, 5);
 
-  // Monthly chart data: month → total_cost
+  // Monthly chart data: month → total_cost, zero-filled across the whole season
   const monthlyTotals = {};
   for (const r of monthly) {
     monthlyTotals[r.period_month] = (monthlyTotals[r.period_month] || 0) + (r.total_cost || 0);
   }
-  const monthLabels = Object.keys(monthlyTotals).sort();
-  const monthData = monthLabels.map(m => monthlyTotals[m]);
+  const monthLabels = seasonMonths(state.activeSeason.start_date, state.activeSeason.end_date);
+  const monthData = monthLabels.map(m => monthlyTotals[m] ?? 0);
 
   // Price series: group by `type · variety`, map date → market_price
   const priceSeries = {};
@@ -1880,4 +1880,18 @@ function chartColors() {
     muted: cs.getPropertyValue("--muted").trim() || "#8aa394",
     line:  cs.getPropertyValue("--line").trim()  || "#2a3b33",
   };
+}
+
+function seasonMonths(startDate, endDate) {
+  // 'YYYY-MM-DD' → ['YYYY-MM', ...] inclusive of both boundary months
+  const months = [];
+  let [y, m] = startDate.slice(0, 7).split("-").map(Number);
+  const [ey, em] = endDate.slice(0, 7).split("-").map(Number);
+  while (y < ey || (y === ey && m <= em)) {
+    months.push(`${y}-${String(m).padStart(2, "0")}`);
+    m += 1;
+    if (m > 12) { m = 1; y += 1; }
+    if (months.length > 120) break; // guard against bad input
+  }
+  return months;
 }
