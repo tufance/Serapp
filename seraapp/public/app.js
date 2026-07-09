@@ -1288,18 +1288,23 @@ async function renderPano(container) {
   recent.sort((a, b) => b.date.localeCompare(a.date));
   const top5 = recent.slice(0, 5);
 
-  // Monthly chart data: month → total_cost. Labels are the union of the
-  // season's month range and every month that actually has data, so a
-  // record entered outside the season's date window is never hidden.
-  const monthlyTotals = {};
+  // Monthly chart data, grouped per consumption item (elektrik, su, …).
+  // Labels are the union of the season's month range and every month
+  // that actually has data, so no record is ever hidden.
+  const itemTotals = {}; // item name → { month → cost }
+  const dataMonths = new Set();
   for (const r of monthly) {
-    monthlyTotals[r.period_month] = (monthlyTotals[r.period_month] || 0) + (r.total_cost || 0);
+    dataMonths.add(r.period_month);
+    const key = r.name ?? "?";
+    (itemTotals[key] = itemTotals[key] || {})[r.period_month] =
+      (itemTotals[key][r.period_month] || 0) + (r.total_cost || 0);
   }
   const monthLabels = [...new Set([
     ...seasonMonths(state.activeSeason.start_date, state.activeSeason.end_date),
-    ...Object.keys(monthlyTotals),
+    ...dataMonths,
   ])].sort();
-  const monthData = monthLabels.map(m => monthlyTotals[m] ?? 0);
+  const itemNames = Object.keys(itemTotals).sort((a, b) => a.localeCompare(b, "tr"));
+  const hasConsumption = itemNames.length > 0;
 
   // Price series: group by `type · variety`, map date → market_price
   const priceSeries = {};
@@ -1342,7 +1347,7 @@ async function renderPano(container) {
 
     <div class="card">
       <h2>Aylık tüketim (TL)</h2>
-      ${monthLabels.length === 0 ? `<div class="empty">Henüz tüketim kaydı yok.</div>` : `<div class="chart-wrap"><canvas id="chart_monthly"></canvas></div>`}
+      ${!hasConsumption ? `<div class="empty">Henüz tüketim kaydı yok.</div>` : `<div class="chart-wrap"><canvas id="chart_monthly"></canvas></div>`}
     </div>
 
     <div class="card">
@@ -1354,22 +1359,21 @@ async function renderPano(container) {
 
   // Charts
   const cc = chartColors();
-  if (monthLabels.length > 0 && typeof Chart !== "undefined") {
+  if (hasConsumption && typeof Chart !== "undefined") {
+    const barPalette = ["#4ad28f","#ffb454","#ff5d6c","#7aa2f7","#bb9af7","#9ece6a","#f7768e","#e0af68"];
+    const barDatasets = itemNames.map((name, i) => ({
+      label: name,
+      data: monthLabels.map(m => itemTotals[name][m] ?? 0),
+      backgroundColor: barPalette[i % barPalette.length] + "99",
+      borderColor: barPalette[i % barPalette.length],
+      borderWidth: 1,
+    }));
     new Chart(document.getElementById("chart_monthly"), {
       type: "bar",
-      data: {
-        labels: monthLabels,
-        datasets: [{
-          label: "Tüketim (TL)",
-          data: monthData,
-          backgroundColor: "rgba(74, 210, 143, 0.5)",
-          borderColor: "rgba(74, 210, 143, 1)",
-          borderWidth: 1,
-        }],
-      },
+      data: { labels: monthLabels, datasets: barDatasets },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        plugins: { legend: { labels: { color: cc.text } } },
         scales: {
           x: { ticks: { color: cc.muted }, grid: { color: cc.line } },
           y: { ticks: { color: cc.muted }, grid: { color: cc.line }, beginAtZero: true },
