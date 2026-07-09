@@ -1288,12 +1288,18 @@ async function renderPano(container) {
   recent.sort((a, b) => b.date.localeCompare(a.date));
   const top5 = recent.slice(0, 5);
 
-  // Monthly chart data, grouped per consumption item (elektrik, su, …).
-  // Labels are the union of the season's month range and every month
-  // that actually has data, so no record is ever hidden.
+  // Monthly chart: only elektrik & su consumption, grouped per item.
+  // Matches any item whose name contains "elektrik" or has "su" as a
+  // standalone word ("sera elektrik", "ortak su", …); other consumption
+  // items (traktör sürme, kömür, …) stay out of this chart.
+  const isElektrikSu = (name) => {
+    const n = (name ?? "").toLocaleLowerCase("tr");
+    return n.includes("elektrik") || /(^|\s)su($|\s)/.test(n);
+  };
   const itemTotals = {}; // item name → { month → cost }
   const dataMonths = new Set();
   for (const r of monthly) {
+    if (!isElektrikSu(r.name)) continue;
     dataMonths.add(r.period_month);
     const key = r.name ?? "?";
     (itemTotals[key] = itemTotals[key] || {})[r.period_month] =
@@ -1346,8 +1352,8 @@ async function renderPano(container) {
     </div>
 
     <div class="card">
-      <h2>Aylık tüketim (TL)</h2>
-      ${!hasConsumption ? `<div class="empty">Henüz tüketim kaydı yok.</div>` : `<div class="chart-wrap"><canvas id="chart_monthly"></canvas></div>`}
+      <h2>Elektrik & Su tüketimi (TL)</h2>
+      ${!hasConsumption ? `<div class="empty">Henüz elektrik/su tüketim kaydı yok.</div>` : `<div class="chart-wrap"><canvas id="chart_monthly"></canvas></div>`}
     </div>
 
     <div class="card">
