@@ -1288,12 +1288,17 @@ async function renderPano(container) {
   recent.sort((a, b) => b.date.localeCompare(a.date));
   const top5 = recent.slice(0, 5);
 
-  // Monthly chart data: month → total_cost, zero-filled across the whole season
+  // Monthly chart data: month → total_cost. Labels are the union of the
+  // season's month range and every month that actually has data, so a
+  // record entered outside the season's date window is never hidden.
   const monthlyTotals = {};
   for (const r of monthly) {
     monthlyTotals[r.period_month] = (monthlyTotals[r.period_month] || 0) + (r.total_cost || 0);
   }
-  const monthLabels = seasonMonths(state.activeSeason.start_date, state.activeSeason.end_date);
+  const monthLabels = [...new Set([
+    ...seasonMonths(state.activeSeason.start_date, state.activeSeason.end_date),
+    ...Object.keys(monthlyTotals),
+  ])].sort();
   const monthData = monthLabels.map(m => monthlyTotals[m] ?? 0);
 
   // Price series: group by `type · variety`, map date → market_price
