@@ -665,10 +665,11 @@ async function renderTuketim(body) {
       <label>Kalem</label>
       <select id="t_ref"></select>
       <label>Dönem (ay)</label><input id="t_month" type="month" value="${currentMonth}" />
-      <label>Miktar</label><input id="t_qty" type="number" inputmode="decimal" min="0" step="0.01" />
-      <label>Birim (otomatik)</label><input id="t_unit" readonly />
-      <label>Birim maliyet (ops.)</label><input id="t_uc" type="number" inputmode="decimal" min="0" step="0.01" />
-      <label>Toplam (TL, ops.)</label><input id="t_tc" type="number" inputmode="decimal" min="0" step="0.01" />
+      <div id="t_qty_wrap">
+        <label>Miktar (stoktan düşülecek)</label><input id="t_qty" type="number" inputmode="decimal" min="0" step="0.01" />
+        <label>Birim (otomatik)</label><input id="t_unit" readonly />
+      </div>
+      <label>Fatura bedeli (TL)</label><input id="t_tc" type="number" inputmode="decimal" min="0" step="0.01" />
       <label>Notlar (ops.)</label><input id="t_notes" />
       <div style="height:12px;"></div>
       <button class="primary" id="t_create">Kaydet</button>
@@ -680,10 +681,11 @@ async function renderTuketim(body) {
           const pool = r.item_type === "supply" ? supplies : utilities;
           const it = pool.find(x => x.id === r.ref_id);
           const cost = r.total_cost != null ? ` · ₺${r.total_cost.toFixed(2)}` : "";
+          const qtyPart = r.item_type === "supply" ? ` · ${r.quantity} ${escape(r.unit)}` : "";
           return `<div class="list-item">
             <div class="clickable" data-detail="${r.id}">
               <div>${escape(it?.name ?? "?")} <span class="meta">[${r.item_type}]</span></div>
-              <div class="meta">${r.period_month} · ${r.quantity} ${escape(r.unit)}${cost}</div>
+              <div class="meta">${r.period_month}${qtyPart}${cost}</div>
             </div>
             <button class="danger" data-del="${r.id}">Sil</button>
           </div>`;
@@ -701,9 +703,8 @@ async function renderTuketim(body) {
         { label: "Dönem", value: r.period_month },
         { label: "Tür", value: r.item_type === "supply" ? "Sarf (stoklu)" : "Tüketim kalemi" },
         { label: "Kalem", value: it?.name ?? "?" },
-        { label: "Miktar", value: `${r.quantity} ${r.unit}` },
-        { label: "Birim maliyet", value: r.unit_cost != null ? `₺${r.unit_cost.toFixed(2)}` : null },
-        { label: "Toplam", value: r.total_cost != null ? `₺${r.total_cost.toFixed(2)}` : null },
+        { label: "Miktar", value: r.item_type === "supply" ? `${r.quantity} ${r.unit}` : null },
+        { label: "Fatura bedeli", value: r.total_cost != null ? `₺${r.total_cost.toFixed(2)}` : null },
         { label: "Notlar", value: r.notes },
         { label: "Kayıt tarihi", value: (r.created_at || "").slice(0, 16).replace("T", " ") },
       ]);
@@ -717,6 +718,9 @@ async function renderTuketim(body) {
     sel.innerHTML = pool.length
       ? pool.map(p => `<option value="${p.id}" data-unit="${escape(p.unit)}">${escape(p.name)} (${escape(p.unit)})</option>`).join("")
       : `<option value="">— Bu tür için kalem yok —</option>`;
+    // Miktar sadece stoklu (sarf) tüketimde gerekli — stok düşüşü onunla yapılır.
+    // Stoksuz kalemlerde (elektrik/su/…) yalnızca fatura bedeli girilir.
+    document.getElementById("t_qty_wrap").style.display = type === "supply" ? "" : "none";
     syncUnit();
   }
   function syncUnit() {
@@ -727,29 +731,31 @@ async function renderTuketim(body) {
   document.getElementById("t_type").onchange = refreshRefOptions;
   document.getElementById("t_ref").onchange = syncUnit;
 
-  const qty = document.getElementById("t_qty"), uc = document.getElementById("t_uc"), tc = document.getElementById("t_tc");
-  function recalc() {
-    const q = Number(qty.value), u = Number(uc.value);
-    if (q > 0 && u >= 0) tc.value = (q * u).toFixed(2);
-  }
-  qty.oninput = recalc; uc.oninput = recalc;
-
   document.getElementById("t_create").onclick = async () => {
     const refVal = document.getElementById("t_ref").value;
     if (!refVal) return toast("Kalem seç", "error");
+    const type = document.getElementById("t_type").value;
+    const tcVal = document.getElementById("t_tc").value;
     const payload = {
       season_id: seasonId,
       period_month: document.getElementById("t_month").value,
-      item_type: document.getElementById("t_type").value,
+      item_type: type,
       ref_id: Number(refVal),
-      quantity: Number(qty.value),
+      // Utility records don't track amounts; store a fixed 1 so the
+      // NOT NULL quantity column stays satisfied without a schema change.
+      quantity: type === "supply" ? Number(document.getElementById("t_qty").value) : 1,
       unit: document.getElementById("t_unit").value,
-      unit_cost: uc.value ? Number(uc.value) : undefined,
-      total_cost: tc.value ? Number(tc.value) : undefined,
+      total_cost: tcVal ? Number(tcVal) : undefined,
       notes: document.getElementById("t_notes").value.trim() || undefined,
     };
-    if (!payload.period_month || !(payload.quantity > 0) || !payload.unit) {
+    if (!payload.period_month || !payload.unit) {
       return toast("Eksik veya geçersiz alan", "error");
+    }
+    if (type === "supply" && !(payload.quantity > 0)) {
+      return toast("Miktar zorunlu (stoktan düşülecek)", "error");
+    }
+    if (type === "utility" && !(payload.total_cost > 0)) {
+      return toast("Fatura bedeli zorunlu", "error");
     }
     try {
       await apiCall("/api/consumption", { method: "POST", body: JSON.stringify(payload) });
